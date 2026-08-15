@@ -25,6 +25,7 @@ import { GROUP_MSG_SCOPE, hasGroupMsgScope } from '../bot/app-scope';
 import { requestScopeGrantLink } from '../bot/wizard';
 import { forgetManagedCard, sendManagedCard, updateManagedCard } from '../card/managed';
 import { helpCard, resumeCard, statusCard, workspacesCard } from '../card/templates';
+import { setLocale, t } from '../i18n';
 import type { AppConfig, AppPreferences, MessageReplyMode, TenantBrand } from '../config/schema';
 import {
   getAgentStopGraceMs,
@@ -34,6 +35,7 @@ import {
   getRequireMentionInGroup,
   getRunIdleTimeoutMs,
   getShowToolCalls,
+  getUiLanguage,
 } from '../config/schema';
 import type {
   LarkCliIdentityPreset,
@@ -163,8 +165,6 @@ interface ResumeCandidate {
 
 const RESUME_CANDIDATE_TTL_MS = 10 * 60 * 1000;
 const resumeCandidates = new Map<string, ResumeCandidate>();
-const AUDIT_SAFE_COMMAND_REPLY = '命令已处理。';
-const RESUME_APPLIED_REPLY = '已完成，请继续发送下一条消息。';
 
 const handlers: Record<string, Handler> = {
   '/new': handleNew,
@@ -221,6 +221,7 @@ export async function tryHandleCommand(ctx: CommandContext): Promise<boolean> {
   const args = parts.slice(1).join(' ');
   const h = handlers[cmd];
   if (!h) return false;
+  setLocale(getUiLanguage(ctx.controls.cfg));
   if (
     isAdminCommand(cmd) &&
     !canRunAdminCommand(ctx.controls.profileConfig, ctx.controls, ctx.msg.senderId).ok
@@ -229,7 +230,7 @@ export async function tryHandleCommand(ctx: CommandContext): Promise<boolean> {
       cmd,
       sender: ctx.msg.senderId.slice(-6),
     });
-    await reply(ctx, '❌ 此命令仅管理员可用。');
+    await reply(ctx, t('common.adminOnly'));
     return true;
   }
   try {
@@ -249,6 +250,7 @@ export async function runCommandHandler(
 ): Promise<boolean> {
   const h = handlers[`/${name}`];
   if (!h) return false;
+  setLocale(getUiLanguage(ctx.controls.cfg));
   if (
     isAdminCommand(name) &&
     !canRunAdminCommand(ctx.controls.profileConfig, ctx.controls, ctx.msg.senderId).ok
@@ -283,11 +285,12 @@ async function reply(ctx: CommandContext, markdown: string): Promise<void> {
   } catch (err) {
     log.fail('command', err, { step: 'reply' });
     reportMetric('command_fail', 1, { step: 'reply' });
-    if (!isMessageAuditReject(err) || markdown === AUDIT_SAFE_COMMAND_REPLY) return;
+    const auditSafeReply = t('common.commandProcessed');
+    if (!isMessageAuditReject(err) || markdown === auditSafeReply) return;
     try {
       await ctx.channel.send(
         ctx.msg.chatId,
-        { markdown: AUDIT_SAFE_COMMAND_REPLY },
+        { markdown: auditSafeReply },
         commandReplyOptions(ctx),
       );
     } catch (fallbackErr) {
@@ -339,7 +342,7 @@ async function handleNew(args: string, ctx: CommandContext): Promise<void> {
     });
   }
   ctx.sessions.clear(ctx.scope);
-  await reply(ctx, wasRunning ? '已中断当前任务并开始新会话。' : '已开始新会话。');
+  await reply(ctx, wasRunning ? t('new.interruptedAndStarted') : t('new.started'));
 }
 
 async function handleNewChat(rawName: string, ctx: CommandContext): Promise<void> {
@@ -355,7 +358,7 @@ async function handleNewChat(rawName: string, ctx: CommandContext): Promise<void
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    await reply(ctx, `❌ 创建群失败：${msg}\n\n确认 bot 已开启 \`im:chat\` 权限。`);
+    await reply(ctx, t('newchat.createFailed', { msg }));
     return;
   }
 
@@ -367,28 +370,25 @@ async function handleNewChat(rawName: string, ctx: CommandContext): Promise<void
 
   // Welcome the user inside the new group with a hint about how to start.
   const welcome = sourceCwd
-    ? `🎉 群已建好，cwd 继承自原群：\`${sourceCwd}\`\n\n@我 + 任意消息开始对话。`
-    : '🎉 群已建好。\n\n@我 + 任意消息开始对话。';
+    ? t('newchat.welcomeWithCwd', { cwd: sourceCwd })
+    : t('newchat.welcomeNoCwd');
   try {
     await ctx.channel.send(created.chatId, { markdown: welcome });
   } catch (err) {
     console.warn('[new-chat] welcome message failed:', err);
   }
 
-  await reply(
-    ctx,
-    `✓ 已创建群 **${created.name}**，去新群里继续。`,
-  );
+  await reply(ctx, t('newchat.created', { name: created.name }));
 }
 
 async function handleCd(args: string, ctx: CommandContext): Promise<void> {
   const input = args.trim();
   if (!input) {
-    await reply(ctx, '用法：`/cd <绝对路径>` 或 `/cd ~/xxx`');
+    await reply(ctx, t('cd.usage'));
     return;
   }
   if (!isAbsoluteOrTilde(input)) {
-    await reply(ctx, '请使用绝对路径，或 `~/xxx` 表示 home 下的子路径。');
+    await reply(ctx, t('cd.notAbsolute'));
     return;
   }
   const absolute = expandTilde(input);
@@ -400,7 +400,7 @@ async function handleCd(args: string, ctx: CommandContext): Promise<void> {
   ctx.activeRuns.interrupt(ctx.scope);
   ctx.workspaces.setCwd(ctx.scope, workspace.cwdRealpath);
   ctx.sessions.clear(ctx.scope);
-  await reply(ctx, `✓ 已切换 cwd 到 \`${workspace.cwdRealpath}\`\n（session 已重置）`);
+  await reply(ctx, t('cd.success', { cwd: workspace.cwdRealpath }));
 }
 
 async function handleWs(args: string, ctx: CommandContext): Promise<void> {
@@ -419,7 +419,7 @@ async function handleWs(args: string, ctx: CommandContext): Promise<void> {
     case 'rm':
       return handleWsRemove(name, ctx);
     default:
-      await reply(ctx, '用法：`/ws [list|save <name>|use <name>|remove <name>]`');
+      await reply(ctx, t('ws.usage'));
   }
 }
 
@@ -435,26 +435,26 @@ async function handleWsList(ctx: CommandContext): Promise<void> {
 
 async function handleWsSave(name: string, ctx: CommandContext): Promise<void> {
   if (!name) {
-    await reply(ctx, '用法：`/ws save <name>`');
+    await reply(ctx, t('ws.save.usage'));
     return;
   }
   const cwd = effectiveWorkspaceCwd(ctx);
   if (!cwd) {
-    await reply(ctx, '当前 chat 未设置 cwd，先用 `/cd` 设置再保存。');
+    await reply(ctx, t('ws.save.noCwd'));
     return;
   }
   ctx.workspaces.saveNamed(scopedWorkspaceName(ctx, name), cwd);
-  await reply(ctx, `✓ 工作目录别名已保存：\`${name}\` → ${cwd}`);
+  await reply(ctx, t('ws.save.success', { name, cwd }));
 }
 
 async function handleWsUse(name: string, ctx: CommandContext): Promise<void> {
   if (!name) {
-    await reply(ctx, '用法：`/ws use <name>`');
+    await reply(ctx, t('ws.use.usage'));
     return;
   }
   const cwd = getWorkspaceAlias(ctx, name);
   if (!cwd) {
-    await reply(ctx, `未找到工作目录别名：\`${name}\``);
+    await reply(ctx, t('ws.aliasNotFound', { name }));
     return;
   }
   const workspace = await resolveWorkingDirectory(cwd);
@@ -465,24 +465,24 @@ async function handleWsUse(name: string, ctx: CommandContext): Promise<void> {
   ctx.activeRuns.interrupt(ctx.scope);
   ctx.workspaces.setCwd(ctx.scope, workspace.cwdRealpath);
   ctx.sessions.clear(ctx.scope);
-  await reply(ctx, `✓ 已切换到 \`${name}\` (${workspace.cwdRealpath})\n（session 已重置）`);
+  await reply(ctx, t('ws.use.success', { name, cwd: workspace.cwdRealpath }));
 }
 
 async function handleWsRemove(name: string, ctx: CommandContext): Promise<void> {
   if (!name) {
-    await reply(ctx, '用法：`/ws remove <name>`');
+    await reply(ctx, t('ws.remove.usage'));
     return;
   }
   if (!removeWorkspaceAlias(ctx, name)) {
-    await reply(ctx, `未找到工作目录别名：\`${name}\``);
+    await reply(ctx, t('ws.aliasNotFound', { name }));
     return;
   }
-  await reply(ctx, `✓ 已删除工作目录别名：\`${name}\``);
+  await reply(ctx, t('ws.remove.success', { name }));
 }
 
 async function handleDoc(args: string, ctx: CommandContext): Promise<void> {
   void args;
-  await reply(ctx, '云文档评论现在不需要绑定工作区；在支持的文档评论里 @bot 即可触发回复。');
+  await reply(ctx, t('doc.hint'));
 }
 
 const WORKSPACE_NAME_SEPARATOR = '\u001f';
@@ -548,12 +548,12 @@ async function handleResume(args: string, ctx: CommandContext): Promise<void> {
 
   const cwd = selectedResumeCwd(ctx);
   if (!cwd) {
-    await reply(ctx, '请先使用 /cd <path> 选择工作目录，再查看或恢复会话。');
+    await reply(ctx, t('resume.needCwd'));
     return;
   }
 
   if (ctx.chatMode !== 'p2p') {
-    await reply(ctx, '群聊中不展示历史会话详情。请私聊 bot 使用 `/resume` 查看和选择历史会话。');
+    await reply(ctx, t('resume.groupNotSupported'));
     return;
   }
 
@@ -581,10 +581,7 @@ async function handleResume(args: string, ctx: CommandContext): Promise<void> {
     }
     if (entry?.threadId && identity) {
       const nonce = issueResumeCandidate(identity, { threadId: entry.threadId });
-      await reply(
-        ctx,
-        `当前 Codex thread 可恢复。\n使用 \`/resume use ${nonce}\` 恢复（10 分钟内有效）。`,
-      );
+      await reply(ctx, t('resume.codexAvailable', { nonce }));
       return;
     }
     const card = resumeCard(cwd, []);
@@ -633,39 +630,39 @@ async function applyResume(sessionId: string, ctx: CommandContext): Promise<void
         });
         ctx.sessions.set(ctx.scope, resolved.sessionId!, ctx.sessionCatalogIdentity.cwdRealpath);
       }
-      await reply(ctx, RESUME_APPLIED_REPLY);
+      await reply(ctx, t('resume.applied'));
       return;
     }
     if (ctx.sessionCatalogIdentity.agentId === 'codex') {
-      await reply(ctx, '当前上下文不可恢复这个会话，请先用 `/resume` 重新生成恢复候选。');
+      await reply(ctx, t('resume.codexInvalid'));
       return;
     }
     const expected = entry?.sessionId;
     if (expected !== sessionId) {
-      await reply(ctx, '当前上下文不可恢复这个会话，请重新选择当前工作区和权限策略下的会话。');
+      await reply(ctx, t('resume.claudeInvalid'));
       return;
     }
     ctx.activeRuns.interrupt(ctx.scope);
     if (ctx.sessionCatalogIdentity.agentId === 'claude') {
       ctx.sessions.set(ctx.scope, sessionId, ctx.sessionCatalogIdentity.cwdRealpath);
     }
-    await reply(ctx, RESUME_APPLIED_REPLY);
+    await reply(ctx, t('resume.applied'));
     return;
   }
 
   if (ctx.controls.profileConfig.agentKind === 'codex') {
-    await reply(ctx, '当前上下文没有可恢复的 Codex thread，请先在当前工作区完成一次运行。');
+    await reply(ctx, t('resume.codexNone'));
     return;
   }
 
   const cwd = selectedResumeCwd(ctx);
   if (!cwd) {
-    await reply(ctx, '请先使用 /cd <path> 选择工作目录，再查看或恢复会话。');
+    await reply(ctx, t('resume.needCwd'));
     return;
   }
   ctx.activeRuns.interrupt(ctx.scope);
   ctx.sessions.set(ctx.scope, sessionId, cwd);
-  await reply(ctx, RESUME_APPLIED_REPLY);
+  await reply(ctx, t('resume.applied'));
 }
 
 function issueResumeCandidate(
@@ -821,7 +818,7 @@ async function handleStatus(_args: string, ctx: CommandContext): Promise<void> {
     profileName: ctx.controls.profile,
     cwd,
     sessionId: isCodex ? catalogEntry?.threadId : sess?.sessionId,
-    emptySessionText: isCodex ? '(未建立)' : undefined,
+    emptySessionText: isCodex ? t('status.sessionEmptyCodex') : undefined,
     sessionStale: !isCodex && Boolean(cwd && sess && sess.cwd !== cwd),
     agentName: ctx.agent.displayName,
     runtimeAccess: runtimeAccessStatus(ctx.controls.profileConfig),
@@ -849,7 +846,7 @@ function formatOwnerState(ctx: CommandContext): string {
 async function handleStop(args: string, ctx: CommandContext): Promise<void> {
   const targetScope = args.trim();
   if (targetScope && !canRunAdminCommand(ctx.controls.profileConfig, ctx.controls, ctx.msg.senderId).ok) {
-    await reply(ctx, '❌ 指定 scope 停止任务仅管理员可用。');
+    await reply(ctx, t('stop.adminOnly'));
     return;
   }
   const scope = targetScope || ctx.scope;
@@ -860,12 +857,7 @@ async function handleStop(args: string, ctx: CommandContext): Promise<void> {
     interrupted: ok,
   });
   if (targetScope) {
-    await reply(
-      ctx,
-      ok
-        ? `已请求停止 \`${scope}\`。`
-        : `未找到正在运行的任务：\`${scope}\`。`,
-    );
+    await reply(ctx, ok ? t('stop.requested', { scope }) : t('stop.notFound', { scope }));
   }
   // No reply for the current IM scope: if there was a run, its in-flight
   // render loop will mark the card as interrupted and re-render.
@@ -878,7 +870,7 @@ async function handleTimeout(args: string, ctx: CommandContext): Promise<void> {
     parsed.targeted &&
     !canRunAdminCommand(ctx.controls.profileConfig, ctx.controls, ctx.msg.senderId).ok
   ) {
-    await reply(ctx, '❌ 指定 scope 设置 timeout 仅管理员可用。');
+    await reply(ctx, t('timeout.adminOnly'));
     return;
   }
   const scope = parsed.scope;
@@ -886,21 +878,20 @@ async function handleTimeout(args: string, ctx: CommandContext): Promise<void> {
   const globalMs = getRunIdleTimeoutMs(ctx.controls.cfg);
   const globalMinutes = globalMs ? Math.round(globalMs / 60_000) : 0;
   const formatGlobal = (): string =>
-    globalMinutes > 0 ? `${globalMinutes} 分钟` : '未启用';
+    globalMinutes > 0 ? t('timeout.minutes', { n: globalMinutes }) : t('timeout.notEnabled');
 
   // /timeout — show effective value + source
   if (!value) {
     const scopeMinutes = ctx.sessions.getIdleTimeoutMinutes(scope);
-    const usage =
-      '\n\n用法:\n- `/timeout 15` 当前 session 设 15 分钟\n- `/timeout off` 当前 session 关闭探活\n- `/timeout default` 清除 session 覆盖,回退全局\n- `/timeout comment:<scopeHash> 15` 管理员设置 comment scope\n\n_注:`/new` 会清掉当前 session 的覆盖,回到全局_';
+    const usage = t('timeout.usage');
     const scopeLabel = parsed.targeted ? ` (${scope})` : '';
     if (scopeMinutes !== undefined) {
       const effective =
-        scopeMinutes > 0 ? `${scopeMinutes} 分钟` : '已关闭（当前 session）';
-      await reply(ctx, `⏱ 当前 session${scopeLabel} 探活:${effective}\n全局默认:${formatGlobal()}${usage}`);
+        scopeMinutes > 0 ? t('timeout.minutes', { n: scopeMinutes }) : t('timeout.disabledCurrent');
+      await reply(ctx, t('timeout.currentEffective', { scopeLabel, effective, global: formatGlobal(), usage }));
       return;
     }
-    await reply(ctx, `⏱ 当前 session${scopeLabel} 探活:跟随全局(${formatGlobal()})${usage}`);
+    await reply(ctx, t('timeout.followsGlobal', { scopeLabel, global: formatGlobal(), usage }));
     return;
   }
 
@@ -910,8 +901,8 @@ async function handleTimeout(args: string, ctx: CommandContext): Promise<void> {
     await reply(
       ctx,
       cleared
-        ? `✅ 已清除 session 覆盖,回退到全局(${formatGlobal()})。`
-        : `当前 session 本来就没设过覆盖,跟随全局(${formatGlobal()})。`,
+        ? t('timeout.cleared', { global: formatGlobal() })
+        : t('timeout.notOverridden', { global: formatGlobal() }),
     );
     return;
   }
@@ -919,18 +910,18 @@ async function handleTimeout(args: string, ctx: CommandContext): Promise<void> {
   if (value === 'off' || value === '0') {
     ctx.sessions.setIdleTimeoutMinutes(scope, 0);
     log.info('command', 'timeout-off', { scope, targeted: parsed.targeted });
-    await reply(ctx, '✅ 已关闭当前 session 的探活。');
+    await reply(ctx, t('timeout.off'));
     return;
   }
 
   const n = Number.parseInt(value, 10);
   if (!Number.isFinite(n) || n < 1 || n > 120) {
-    await reply(ctx, '❌ 用法:`/timeout <1-120>` / `/timeout off` / `/timeout default`');
+    await reply(ctx, t('timeout.invalidUsage'));
     return;
   }
   ctx.sessions.setIdleTimeoutMinutes(scope, n);
   log.info('command', 'timeout-set', { scope, minutes: n, targeted: parsed.targeted });
-  await reply(ctx, `✅ 当前 session 探活已设为 ${n} 分钟。`);
+  await reply(ctx, t('timeout.set', { n }));
 }
 
 function parseTimeoutTarget(input: string, currentScope: string): {
@@ -958,26 +949,26 @@ async function handlePs(_args: string, ctx: CommandContext): Promise<void> {
   const live = readAndPrune();
   log.info('command', 'ps', { count: live.length });
   if (live.length === 0) {
-    await reply(ctx, '当前没有 bot 在运行(理论上不可能,你正在跟其中之一对话…)');
+    await reply(ctx, t('ps.none'));
     return;
   }
 
   const rows: string[] = [
-    '| # | ID | Bot | 启动 |',
+    t('ps.tableHeader'),
     '|---|---|---|---|',
   ];
   for (const [idx, e] of live.entries()) {
     const ago = formatAgo(Date.now() - new Date(e.startedAt).getTime());
-    const me = e.id === ctx.controls.processId ? ' ← 当前正在回复' : '';
+    const me = e.id === ctx.controls.processId ? t('ps.currentReplying') : '';
     const bot = e.botName ? `${e.botName} (\`${e.appId}\`)` : `\`${e.appId}\``;
     rows.push(`| ${idx + 1} | \`${e.id}\`${me} | ${bot} | ${ago} |`);
   }
   const body = [
-    `🧭 **当前有 ${live.length} 个 bot 在运行**`,
+    t('ps.header', { n: live.length }),
     '',
     rows.join('\n'),
     '',
-    '用 `/exit <id|#>` 关掉某一个;`/exit ' + ctx.controls.processId + '` 关掉正在回复你的这个 bot。',
+    t('ps.footer', { id: ctx.controls.processId }),
   ].join('\n');
   await reply(ctx, body);
 }
@@ -985,23 +976,19 @@ async function handlePs(_args: string, ctx: CommandContext): Promise<void> {
 async function handleExit(args: string, ctx: CommandContext): Promise<void> {
   const target = args.trim();
   if (!target) {
-    await reply(
-      ctx,
-      '用法:`/exit <id|#>` —— `id` 是 `/ps` 显示的短 id,`#` 是序号。\n' +
-        `当前正在回复你的是 \`${ctx.controls.processId}\`。`,
-    );
+    await reply(ctx, t('exit.usage', { id: ctx.controls.processId }));
     return;
   }
   const entry = resolveTarget(target);
   if (!entry) {
-    await reply(ctx, `❌ 没找到匹配的 bot:\`${target}\`。发 \`/ps\` 看可选目标。`);
+    await reply(ctx, t('exit.notFound', { target }));
     return;
   }
 
   // Targeting ourselves — graceful disconnect + process.exit(0) via controls.
   if (entry.id === ctx.controls.processId) {
     log.info('command', 'exit-self', { id: entry.id });
-    await reply(ctx, `👋 即将关闭当前 bot \`${entry.id}\`,再见。`);
+    await reply(ctx, t('exit.self', { id: entry.id }));
     // Detach to give the reply send a chance to complete before we tear
     // down. controls.exit() awaits disconnect then process.exit().
     void (async () => {
@@ -1018,27 +1005,24 @@ async function handleExit(args: string, ctx: CommandContext): Promise<void> {
   try {
     process.kill(entry.pid, 'SIGTERM');
   } catch (err) {
-    await reply(ctx, `❌ 关掉 bot \`${entry.id}\` 失败:${(err as Error).message}`);
+    await reply(ctx, t('exit.otherFailed', { id: entry.id, err: (err as Error).message }));
     return;
   }
   // Brief grace before reporting.
   await new Promise((r) => setTimeout(r, 500));
   const stillAlive = isAlive(entry.pid);
   if (stillAlive) {
-    await reply(
-      ctx,
-      `📨 已请求关闭 \`${entry.id}\`,但还在收尾。再发 \`/ps\` 复查一下。`,
-    );
+    await reply(ctx, t('exit.stillAlive', { id: entry.id }));
   } else {
-    await reply(ctx, `✓ 已关闭 bot \`${entry.id}\`。`);
+    await reply(ctx, t('exit.otherSuccess', { id: entry.id }));
   }
 }
 
 function formatAgo(ms: number): string {
-  if (ms < 60_000) return `${Math.floor(ms / 1000)}s 前`;
-  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m 前`;
-  if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h 前`;
-  return `${Math.floor(ms / 86_400_000)}d 前`;
+  if (ms < 60_000) return t('time.ago.seconds', { n: Math.floor(ms / 1000) });
+  if (ms < 3_600_000) return t('time.ago.minutes', { n: Math.floor(ms / 60_000) });
+  if (ms < 86_400_000) return t('time.ago.hours', { n: Math.floor(ms / 3_600_000) });
+  return t('time.ago.days', { n: Math.floor(ms / 86_400_000) });
 }
 
 async function handleReconnect(args: string, ctx: CommandContext): Promise<void> {
