@@ -1028,7 +1028,7 @@ function formatAgo(ms: number): string {
 async function handleReconnect(args: string, ctx: CommandContext): Promise<void> {
   const wait = args.trim().split(/\s+/).filter(Boolean).includes('--wait');
   log.info('command', 'reconnect', { wait });
-  await reply(ctx, wait ? '⏳ 将在当前运行结束后重连…' : '⏳ 正在停止当前运行并重连…');
+  await reply(ctx, wait ? t('reconnect.afterRun') : t('reconnect.now'));
   let resumeNewRuns: (() => void) | undefined;
   try {
     resumeNewRuns = ctx.activeRuns.pauseNewRuns('reconnect-in-progress');
@@ -1042,7 +1042,7 @@ async function handleReconnect(args: string, ctx: CommandContext): Promise<void>
   } catch (err) {
     log.fail('command', err, { step: 'reconnect' });
     reportMetric('command_fail', 1, { step: 'reconnect' });
-    await reply(ctx, `❌ 重连失败:${err instanceof Error ? err.message : String(err)}`);
+    await reply(ctx, t('reconnect.failed', { err: err instanceof Error ? err.message : String(err) }));
   } finally {
     resumeNewRuns?.();
   }
@@ -1064,7 +1064,7 @@ async function handleDoctor(args: string, ctx: CommandContext): Promise<void> {
   const now = Date.now();
   const last = doctorLastByOperator.get(rateKey);
   if (last !== undefined && now - last < DOCTOR_RATE_LIMIT_MS) {
-    await reply(ctx, 'doctor rate limited: 同一用户 30 秒内只能触发一次。');
+    await reply(ctx, t('doctor.rateLimited'));
     return;
   }
 
@@ -1073,8 +1073,7 @@ async function handleDoctor(args: string, ctx: CommandContext): Promise<void> {
     await reply(
       ctx,
       buildDoctorReport(ctx, {
-        workspaceCheck:
-          '未设置工作目录。先用 `/cd <path>` 或 `/ws use <name>` 选择工作目录后再运行 agent echo check。',
+        workspaceCheck: t('doctor.noWorkspace'),
         echoCheck: 'skipped',
       }),
     );
@@ -1086,7 +1085,7 @@ async function handleDoctor(args: string, ctx: CommandContext): Promise<void> {
     await reply(
       ctx,
       buildDoctorReport(ctx, {
-        workspaceCheck: `${workspace.userVisible} 工作目录不可用时只执行 self-check，不启动 agent。`,
+        workspaceCheck: t('doctor.workspaceUnavailable', { reason: workspace.userVisible }),
         echoCheck: 'skipped',
       }),
     );
@@ -1106,7 +1105,7 @@ async function handleDoctor(args: string, ctx: CommandContext): Promise<void> {
 
   const profileKey = ctx.controls.profile;
   if (doctorInFlightProfiles.has(profileKey)) {
-    await reply(ctx, 'doctor in-flight: 当前 profile 已有诊断运行中。');
+    await reply(ctx, t('doctor.inFlight'));
     return;
   }
   doctorLastByOperator.set(rateKey, now);
@@ -1158,7 +1157,7 @@ async function handleDoctor(args: string, ctx: CommandContext): Promise<void> {
   // open_id (Lark auto-opens the p2p chat with the bot).
   const isP2p = ctx.chatMode === 'p2p';
   if (!isP2p) {
-    await reply(ctx, '🔍 已收到诊断请求，分析结果将私信发给你。');
+    await reply(ctx, t('doctor.ack'));
   }
 
   doctorInFlightProfiles.add(profileKey);
@@ -1287,7 +1286,7 @@ function buildDoctorReport(
     'self-check: ok',
     `profile: ${ctx.controls.profile}`,
     `agent: ${ctx.agent.displayName} (${ctx.controls.profileConfig.agentKind})`,
-    `workspace: ${cwd ?? '(未设置)'}`,
+    `workspace: ${cwd ?? t('common.notSet')}`,
     `workspace default: ${ctx.controls.profileConfig.workspaces.default ? 'set' : 'missing'}`,
     `${runtimeAccess.label}: ${runtimeAccess.value}`,
     `access: ${access.ok ? 'ok' : 'denied'} (${access.reason})`,
@@ -1334,7 +1333,7 @@ async function handleAccount(args: string, ctx: CommandContext): Promise<void> {
     case 'cancel':
       return cancelAccount(ctx);
     default:
-      await reply(ctx, '用法：`/account` 或 `/account change`');
+      await reply(ctx, t('account.usage'));
   }
 }
 
@@ -1431,7 +1430,7 @@ async function submitAccount(ctx: CommandContext): Promise<void> {
     };
 
     if (!appId || !appSecret) {
-      await finishFailure('App ID 或 App Secret 为空');
+      await finishFailure(t('account.emptyFields'));
       return;
     }
 
@@ -1457,7 +1456,7 @@ async function submitAccount(ctx: CommandContext): Promise<void> {
       await saveAccountConfig(ctx, newCfg, appSecret);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      await finishFailure(`保存凭据失败：${msg}`);
+      await finishFailure(t('account.saveFailed', { msg }));
       return;
     }
 
@@ -1513,9 +1512,9 @@ async function handleInvite(args: string, ctx: CommandContext): Promise<void> {
       };
     });
     if (knownChats.length === 0) {
-      await reply(ctx, '当前 bot 还不在任何群里，没有可加入的群。');
+      await reply(ctx, t('invite.noGroups'));
     } else {
-      await reply(ctx, `✅ 已把 bot 所在的 ${added} 个群加入响应群名单（共 ${total} 个）。`);
+      await reply(ctx, t('invite.allGroupsAdded', { added, total }));
     }
     return;
   }
@@ -1526,20 +1525,13 @@ async function handleInvite(args: string, ctx: CommandContext): Promise<void> {
     | 'group'
     | undefined;
   if (!kind) {
-    await reply(
-      ctx,
-      '用法：\n' +
-        '• `/invite user @某人` — 加入允许私聊\n' +
-        '• `/invite admin @某人` — 加入管理员\n' +
-        '• `/invite group` — 把当前群加入响应群名单\n' +
-        '• `/invite all group` — 把 bot 所在的所有群一键加入',
-    );
+    await reply(ctx, t('invite.usage'));
     return;
   }
 
   if (kind === 'group') {
     if (ctx.chatMode === 'p2p') {
-      await reply(ctx, '❌ `/invite group` 只能在群里发，在私聊里没有 chat_id 可以加。');
+      await reply(ctx, t('invite.groupInP2p'));
       return;
     }
     const chatId = ctx.msg.chatId;
@@ -1554,19 +1546,16 @@ async function handleInvite(args: string, ctx: CommandContext): Promise<void> {
       };
     });
     if (already) {
-      await reply(ctx, '✅ 当前群已在白名单里，无需重复添加。');
+      await reply(ctx, t('invite.groupAlready'));
       return;
     }
-    await reply(ctx, `✅ 已把当前群（\`${chatId}\`）加入响应群名单。`);
+    await reply(ctx, t('invite.groupAdded', { chatId }));
     return;
   }
 
   const targets = mentionTargets(ctx);
   if (targets.length === 0) {
-    await reply(
-      ctx,
-      `❌ 没检测到 @ 的用户。请像这样发：\`/invite ${kind} @某人\`（注意 @ 用户不是 @ bot）。`,
-    );
+    await reply(ctx, t('invite.noMention', { kind }));
     return;
   }
 
@@ -1590,10 +1579,11 @@ async function handleInvite(args: string, ctx: CommandContext): Promise<void> {
       [listKey]: [...list],
     };
   });
-  const label = kind === 'user' ? '用户白名单' : '管理员';
+  const label = kind === 'user' ? t('access.label.users') : t('access.label.admins');
+  const sep = t('common.listSeparator');
   const parts: string[] = [];
-  if (added.length > 0) parts.push(`✅ 已把 ${added.join('、')} 加入${label}。`);
-  if (already.length > 0) parts.push(`_${already.join('、')} 已经在${label}里，跳过。_`);
+  if (added.length > 0) parts.push(t('invite.added', { names: added.join(sep), label }));
+  if (already.length > 0) parts.push(t('invite.already', { names: already.join(sep), label }));
   await reply(ctx, parts.join('\n'));
 }
 
@@ -1605,19 +1595,13 @@ async function handleRemove(args: string, ctx: CommandContext): Promise<void> {
     | 'group'
     | undefined;
   if (!kind) {
-    await reply(
-      ctx,
-      '用法：\n' +
-        '• `/remove user @某人` — 移出用户白名单\n' +
-        '• `/remove admin @某人` — 移出管理员\n' +
-        '• `/remove group` — 把当前群移出响应群名单',
-    );
+    await reply(ctx, t('remove.usage'));
     return;
   }
 
   if (kind === 'group') {
     if (ctx.chatMode === 'p2p') {
-      await reply(ctx, '`/remove group` 请在要移除的群里发，私聊里没有可移除的群。');
+      await reply(ctx, t('remove.groupInP2p'));
       return;
     }
     const chatId = ctx.msg.chatId;
@@ -1632,16 +1616,16 @@ async function handleRemove(args: string, ctx: CommandContext): Promise<void> {
       };
     });
     if (missing) {
-      await reply(ctx, '✅ 当前群本来就不在响应名单里，无需移除。');
+      await reply(ctx, t('remove.groupMissing'));
       return;
     }
-    await reply(ctx, '✅ 已把当前群移出响应群名单。');
+    await reply(ctx, t('remove.groupRemoved'));
     return;
   }
 
   const targets = mentionTargets(ctx);
   if (targets.length === 0) {
-    await reply(ctx, `请 @ 上要移除的人，例如：\`/remove ${kind} @某人\`。`);
+    await reply(ctx, t('remove.noMention', { kind }));
     return;
   }
 
@@ -1665,10 +1649,11 @@ async function handleRemove(args: string, ctx: CommandContext): Promise<void> {
       [listKey]: [...list],
     };
   });
-  const label = kind === 'user' ? '用户白名单' : '管理员';
+  const label = kind === 'user' ? t('access.label.users') : t('access.label.admins');
+  const sep = t('common.listSeparator');
   const parts: string[] = [];
-  if (removed.length > 0) parts.push(`✅ 已把 ${removed.join('、')} 移出${label}。`);
-  if (notThere.length > 0) parts.push(`${notThere.join('、')} 本来就不在${label}里，无需移除。`);
+  if (removed.length > 0) parts.push(t('remove.removed', { names: removed.join(sep), label }));
+  if (notThere.length > 0) parts.push(t('remove.notThere', { names: notThere.join(sep), label }));
   await reply(ctx, parts.join('\n'));
 }
 
@@ -1700,7 +1685,7 @@ async function handleConfig(args: string, ctx: CommandContext): Promise<void> {
     case 'cancel':
       return cancelConfig(ctx);
     default:
-      await reply(ctx, '用法:`/config`');
+      await reply(ctx, t('config.usage'));
   }
 }
 
@@ -2018,15 +2003,15 @@ async function promptGroupMsgScopeIfMissing(ctx: CommandContext): Promise<void> 
 
 function configFailureMessage(step: string, rollbackFailed: boolean, larkCliPolicyApplied: boolean): string {
   if (rollbackFailed) {
-    return '保存失败，且 lark-cli 身份策略回滚失败。请执行 /status 检查当前状态。';
+    return t('config.fail.rollbackFailed');
   }
   if (larkCliPolicyApplied && step === 'config.save') {
-    return '保存失败，lark-cli 身份策略已回滚。请重新打开 /config 确认当前状态。';
+    return t('config.fail.rolledBack');
   }
   if (step === 'config.lark-cli-policy') {
-    return 'lark-cli 身份策略未生效，未做任何修改。';
+    return t('config.fail.policyNotApplied');
   }
-  return '配置未写入，未做任何修改。';
+  return t('config.fail.notWritten');
 }
 
 function commandProfilePaths(ctx: CommandContext) {
@@ -2081,14 +2066,11 @@ async function handleMeeting(args: string, ctx: CommandContext): Promise<void> {
   const manager = ctx.controls.meeting;
 
   if (!ctx.controls.profileConfig.meeting.enabled) {
-    await reply(
-      ctx,
-      '会议智能体未启用。在 `/config` 或 Web 控制台里开启「会议智能体」后重启 bot 即可。',
-    );
+    await reply(ctx, t('meeting.notEnabled'));
     return;
   }
   if (!manager) {
-    await reply(ctx, '会议能力未就绪（channel 未连接或启用后尚未重启）。');
+    await reply(ctx, t('meeting.notReady'));
     return;
   }
 
@@ -2100,19 +2082,21 @@ async function handleMeeting(args: string, ctx: CommandContext): Promise<void> {
     case 'join': {
       const meetingNo = rest.replace(/\s/g, '');
       if (!isMeetingNo(meetingNo)) {
-        await reply(ctx, '用法：`/meeting join <9位会议号>`（只接受 9 位纯数字，不是会议链接）');
+        await reply(ctx, t('meeting.join.usage'));
         return;
       }
       try {
         const session = await manager.join(meetingNo, { originChatId: ctx.msg.chatId });
         await reply(
           ctx,
-          `✅ 已入会 **${session.topic ?? meetingNo}**\n` +
-            `会议号 ${session.meetingNo} · 会中发 \`${ctx.controls.profileConfig.meeting.trigger} 你的问题\` 可以问我\n` +
-            '`/meeting notes` 总结 · `/meeting leave` 离会',
+          t('meeting.joined', {
+            topic: session.topic ?? meetingNo,
+            meetingNo: session.meetingNo,
+            trigger: ctx.controls.profileConfig.meeting.trigger,
+          }),
         );
       } catch (err) {
-        await reply(ctx, `入会失败：${describeMeetingError(err)}`);
+        await reply(ctx, t('meeting.joinFailed', { err: describeMeetingError(err) }));
       }
       return;
     }
@@ -2123,7 +2107,7 @@ async function handleMeeting(args: string, ctx: CommandContext): Promise<void> {
         return;
       }
       await manager.leave(picked.session.meetingId);
-      await reply(ctx, `✅ 已离会（会议号 ${picked.session.meetingNo}）`);
+      await reply(ctx, t('meeting.left', { meetingNo: picked.session.meetingNo }));
       return;
     }
     case 'transcript': {
@@ -2136,19 +2120,18 @@ async function handleMeeting(args: string, ctx: CommandContext): Promise<void> {
       }
       const lines = picked.session.recentTranscript();
       if (lines.length === 0) {
-        await reply(
-          ctx,
-          '字幕缓冲为空 —— agent 这次拿到的会议上下文是「（暂无字幕）」。\n' +
-            '注意：同一场会里 agent 复用一个会话，**早先轮次**的字幕仍留在它自己的对话历史里，' +
-            '所以它可能引用缓冲里已经没有的内容。`/new` 可以清掉该会话记忆。',
-        );
+        await reply(ctx, t('meeting.transcriptEmpty'));
         return;
       }
       const tail = lines.slice(-30);
       await reply(
         ctx,
         [
-          `字幕缓冲共 ${lines.length} 条${tail.length < lines.length ? `，以下是最近 ${tail.length} 条` : ''}：`,
+          t('meeting.transcriptHeader', {
+            n: lines.length,
+            suffix:
+              tail.length < lines.length ? t('meeting.transcriptRecentSuffix', { m: tail.length }) : '',
+          }),
           '```',
           ...tail,
           '```',
@@ -2163,7 +2146,7 @@ async function handleMeeting(args: string, ctx: CommandContext): Promise<void> {
         return;
       }
       const stopped = ctx.activeRuns.interrupt(meetingScopeId(picked.session.meetingId));
-      await reply(ctx, stopped ? '✅ 已中断该会议的当前任务。' : '该会议当前没有正在执行的任务。');
+      await reply(ctx, stopped ? t('meeting.stopInterrupted') : t('meeting.stopNone'));
       return;
     }
     case 'notes':
@@ -2176,19 +2159,16 @@ async function handleMeeting(args: string, ctx: CommandContext): Promise<void> {
         return;
       }
       const session = picked.session;
-      const question =
-        sub === 'notes'
-          ? '请基于以上会议字幕做一份简洁纪要：讨论了什么、结论、待办（如有）。'
-          : rest;
+      const question = sub === 'notes' ? t('meeting.notesPrompt') : rest;
       if (!question) {
-        await reply(ctx, '用法：`/meeting ask <问题>`');
+        await reply(ctx, t('meeting.ask.usage'));
         return;
       }
       if (!ctx.runExecutor) {
-        await reply(ctx, '当前上下文无法执行 agent（缺少 run executor）。');
+        await reply(ctx, t('meeting.noExecutor'));
         return;
       }
-      await reply(ctx, sub === 'notes' ? '正在总结会议…' : '正在思考…');
+      await reply(ctx, sub === 'notes' ? t('meeting.summarizing') : t('meeting.thinking'));
       try {
         const answer = await answerInMeeting(
           {
@@ -2206,26 +2186,14 @@ async function handleMeeting(args: string, ctx: CommandContext): Promise<void> {
           // summary somebody asked for in a DM would surprise the meeting.
           { deliver: 'caller' },
         );
-        await reply(ctx, answer || '（没有产生回答）');
+        await reply(ctx, answer || t('meeting.noAnswer'));
       } catch (err) {
-        await reply(ctx, `执行失败：${describeMeetingError(err)}`);
+        await reply(ctx, t('meeting.execFailed', { err: describeMeetingError(err) }));
       }
       return;
     }
     default:
-      await reply(
-        ctx,
-        [
-          '用法：',
-          '`/meeting` — 状态',
-          '`/meeting join <9位会议号>` — 让 bot 入会',
-          '`/meeting leave [会议号]` — 离会',
-          '`/meeting notes [会议号]` — 基于字幕做纪要（只发给你）',
-          '`/meeting stop [会议号]` — 中断该会议卡住的任务',
-          '`/meeting transcript [会议号]` — 看 agent 实际拿到的字幕上下文',
-          '`/meeting ask <问题>` — 带会议上下文提问',
-        ].join('\n'),
-      );
+      await reply(ctx, t('meeting.usage'));
   }
 }
 
@@ -2250,12 +2218,12 @@ function pickMeetingSession(
     const found = manager.byMeetingNo(wanted);
     return found
       ? { ok: true, session: found }
-      : { ok: false, message: `没找到会议号 ${wanted} 对应的会议。用 \`/meeting\` 看当前在跟哪几场。` };
+      : { ok: false, message: t('meeting.pick.notFound', { wanted }) };
   }
 
   const all = manager.all();
   if (all.length === 0) {
-    return { ok: false, message: '当前没有在跟的会议。先 `/meeting join <9位会议号>`。' };
+    return { ok: false, message: t('meeting.pick.none') };
   }
   if (all.length === 1) return { ok: true, session: all[0]! };
 
@@ -2266,7 +2234,7 @@ function pickMeetingSession(
   const list = all.map((s) => `- ${s.meetingNo}${s.topic ? `（${s.topic}）` : ''}`).join('\n');
   return {
     ok: false,
-    message: `当前在跟 ${all.length} 场会议，请指定会议号：\n${list}\n\n例如 \`/meeting notes ${all[0]!.meetingNo}\``,
+    message: t('meeting.pick.multiple', { n: all.length, list, example: all[0]!.meetingNo }),
   };
 }
 
@@ -2274,17 +2242,24 @@ async function replyMeetingStatus(ctx: CommandContext, manager: MeetingManager):
   const sessions = manager.list();
   const push = manager.pushHealth();
   const pushLine = push.hooked
-    ? `推送：已挂载，累计收到 ${push.received} 条${push.received === 0 ? '（尚未收到，可能还没在后台订阅 vc.bot.* 事件）' : ''}`
-    : `推送：未挂载（${push.reason ?? '未知原因'}），仅靠轮询`;
+    ? t('meeting.push.hooked', {
+        n: push.received,
+        suffix: push.received === 0 ? t('meeting.push.noneReceivedSuffix') : '',
+      })
+    : t('meeting.push.notHooked', { reason: push.reason ?? t('meeting.push.unknownReason') });
 
   if (sessions.length === 0) {
-    await reply(ctx, [`当前没有在跟的会议。`, pushLine, '', '`/meeting join <9位会议号>` 开始。'].join('\n'));
+    await reply(ctx, [t('meeting.status.noneHeader'), pushLine, '', t('meeting.status.joinHint')].join('\n'));
     return;
   }
-  const lines = sessions.map(
-    (s) =>
-      `- **${s.topic ?? s.meetingNo}**（${s.meetingNo}）· 来源 ${s.source === 'push' ? '推送' : '轮询'}` +
-      ` · 字幕 ${s.transcriptLines} 条 · 参会 ${s.participants} 人`,
+  const lines = sessions.map((s) =>
+    t('meeting.status.line', {
+      topic: s.topic ?? s.meetingNo,
+      meetingNo: s.meetingNo,
+      source: s.source === 'push' ? t('meeting.source.push') : t('meeting.source.poll'),
+      lines: s.transcriptLines,
+      participants: s.participants,
+    }),
   );
-  await reply(ctx, [`正在跟 ${sessions.length} 场会议：`, ...lines, '', pushLine].join('\n'));
+  await reply(ctx, [t('meeting.status.header', { n: sessions.length }), ...lines, '', pushLine].join('\n'));
 }
