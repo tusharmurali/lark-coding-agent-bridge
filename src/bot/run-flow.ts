@@ -1,8 +1,9 @@
 import type { AgentCapability } from '../agent/capability';
 import { resolveModelArg } from '../agent/models';
 import type { AgentEvent } from '../agent/types';
-import { t } from '../i18n';
+import { setLocale, t } from '../i18n';
 import type { ProfileConfig } from '../config/profile-schema';
+import { getUiLanguage } from '../config/schema';
 import type { AccessDecision } from '../policy/access';
 import {
   evaluateRunPolicy,
@@ -76,6 +77,7 @@ export interface RecordRunSessionEventInput {
 }
 
 export async function startRunFlow(input: StartRunFlowInput): Promise<StartRunFlowResult> {
+  setLocale(getUiLanguage(input.profileConfig));
   const requestedCwd =
     input.workspaces.cwdFor(input.scopeId) ?? input.profileConfig.workspaces.default ?? '';
   const workspace = await resolveWorkingDirectory(requestedCwd);
