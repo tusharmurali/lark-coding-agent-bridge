@@ -154,7 +154,11 @@ export class CotPublisher {
     this.originMessageId = opts.originMessageId;
     this.runId = opts.runId;
     this.scope = opts.scope;
-    this.inputPreview = opts.inputPreview;
+    // Cap like every other CoT field: this goes out in RUN_STARTED's
+    // input.query on the FIRST update, so a long user message makes that
+    // update oversized and Lark rejects the whole thing with code=10001,
+    // freezing the bubble on its initial state for the rest of the run.
+    this.inputPreview = truncateCot(opts.inputPreview, COT_TEXT_MAX);
   }
 
   async start(): Promise<void> {
