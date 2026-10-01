@@ -90,11 +90,42 @@ describe('per-chat reply target', () => {
     expect(outboundTo(h.channel, SOURCE)).toEqual([]);
   });
 
+  it('ignores a reply in a redirected group unless it mentions the bot', async () => {
+    const h = await startTestBridge();
+
+    await h.channel.handlers.message?.(
+      message({ messageId: 'om_reply', rootId: 'om_question', content: 'thanks' }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(h.channel.rawClient.im.v1.message.mergeForward).not.toHaveBeenCalled();
+    expect(h.agent.runOptions).toEqual([]);
+
+    await h.channel.handlers.message?.(
+      message({
+        messageId: 'om_reply_at',
+        rootId: 'om_question',
+        content: '@Bridge and this?',
+        mentionedBot: true,
+      }),
+    );
+    await waitFor(() => h.channel.streams.length === 1);
+    expect(h.channel.rawClient.im.v1.message.mergeForward).toHaveBeenCalledWith({
+      params: { receive_id_type: 'chat_id' },
+      data: { receive_id: TARGET, message_id_list: ['om_reply_at'] },
+    });
+  });
+
   it('leaves the reply threaded in place for a group without a target', async () => {
     const h = await startTestBridge();
 
     await h.channel.handlers.message?.(
-      message({ messageId: 'om_plain', chatId: 'oc_plain', threadId: 'omt_plain', content: 'hi' }),
+      message({
+        messageId: 'om_plain',
+        chatId: 'oc_plain',
+        threadId: 'omt_plain',
+        content: 'hi',
+        mentionedBot: true,
+      }),
     );
     await waitFor(() => h.channel.streams.length === 1);
 
@@ -145,6 +176,7 @@ async function startTestBridge(): Promise<{ channel: FakeLarkChannel; agent: Fak
     accounts: { app: { id: 'cli_test', secret: 'secret', tenant: 'feishu' } },
     access: {
       allowedChats: [SOURCE, 'oc_plain'],
+      chatRequireMention: { [SOURCE]: false },
       chatReplyTarget: { [SOURCE]: TARGET },
     },
   });
@@ -246,6 +278,8 @@ function message(input: {
   content: string;
   chatId?: string;
   threadId?: string;
+  rootId?: string;
+  mentionedBot?: boolean;
 }): NormalizedMessage {
   return {
     messageId: input.messageId,
@@ -256,11 +290,14 @@ function message(input: {
     content: input.content,
     rawContentType: 'text',
     resources: [],
-    mentions: [{ key: '@_user_1', openId: 'ou_bot', name: 'Bridge', isBot: true }],
+    mentions: input.mentionedBot
+      ? [{ key: '@_user_1', openId: 'ou_bot', name: 'Bridge', isBot: true }]
+      : [],
     mentionAll: false,
-    mentionedBot: true,
+    mentionedBot: input.mentionedBot === true,
     createTime: 1760000001000,
     ...(input.threadId ? { threadId: input.threadId } : {}),
+    ...(input.rootId ? { rootId: input.rootId } : {}),
   } as unknown as NormalizedMessage;
 }
 

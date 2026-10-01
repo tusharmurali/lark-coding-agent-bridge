@@ -33,8 +33,8 @@ export interface ProfileAccess {
    * Per-chat reply redirect, keyed by the source chat_id; the value is the
    * chat_id that receives the reply. Messages from a listed group are
    * forwarded to the target chat and answered under that copy, and nothing is
-   * posted back into the source group. A chat absent from the map is answered
-   * in place.
+   * posted back into the source group. Replies in the source group are ignored
+   * unless they @ the bot. A chat absent from the map is answered in place.
    */
   chatReplyTarget?: Record<string, string>;
 }

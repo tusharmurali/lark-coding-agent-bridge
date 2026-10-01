@@ -773,6 +773,12 @@ async function intakeMessage(deps: IntakeDeps): Promise<void> {
   const redirected =
     msg.chatType !== 'p2p' &&
     replyTargetForChat(controls.profileConfig, msg.chatId) !== undefined;
+  // Only the message that opens a conversation is forwarded. Replies are the
+  // source chat talking among itself; they are skipped unless they @ the bot.
+  if (redirected && emsg.rootId && !msg.mentionedBot) {
+    log.info('intake', 'skip-redirected-reply', { scope, msgId: msg.messageId });
+    return;
+  }
 
   // A merge_forward whose sub-messages the SDK could not fetch (transient
   // upstream failure, already retried inside @larksuite/channel) arrives as the
