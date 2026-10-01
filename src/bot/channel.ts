@@ -47,7 +47,12 @@ import {
   toPolicyAttachment,
   toPromptAttachment,
 } from '../media/attachment';
-import { canUseDm, canUseGroup, requireMentionForChat } from '../policy/access';
+import {
+  canUseDm,
+  canUseGroup,
+  replyTargetForChat,
+  requireMentionForChat,
+} from '../policy/access';
 import { MeetingManager } from '../meeting/manager';
 import type { VcRequestClient } from '../meeting/api';
 import { attachMeetingAgent, summarizeEndedMeeting } from '../meeting/orchestrator';
@@ -612,6 +617,29 @@ async function sendForwardFetchFailedHint(
   }
 }
 
+/**
+ * Forward a redirected batch into its reply-target chat as one merged "chat
+ * history" message — sender names, images and files intact — and return the
+ * forwarded copy's message id, which the run then replies to. Throws when the
+ * forward fails: answering in the source chat instead would defeat the
+ * redirect, so the caller skips the run.
+ */
+async function forwardBatch(
+  channel: LarkChannel,
+  targetChatId: string,
+  batch: NormalizedMessage[],
+): Promise<string> {
+  const res = await channel.rawClient.im.v1.message.mergeForward({
+    params: { receive_id_type: 'chat_id' },
+    data: { receive_id: targetChatId, message_id_list: batch.map((m) => m.messageId) },
+  });
+  const messageId = res.data?.message?.message_id;
+  if (!messageId) {
+    throw new Error(`merge_forward to ${targetChatId} failed: ${res.code} ${res.msg}`);
+  }
+  return messageId;
+}
+
 interface IntakeDeps {
   channel: LarkChannel;
   agent: AgentAdapter;
@@ -739,6 +767,13 @@ async function intakeMessage(deps: IntakeDeps): Promise<void> {
     return;
   }
 
+  // A redirected group (access.chatReplyTarget) is answered in another chat, so
+  // the bridge posts nothing back into it: no hints, and no slash commands,
+  // whose replies would land here.
+  const redirected =
+    msg.chatType !== 'p2p' &&
+    replyTargetForChat(controls.profileConfig, msg.chatId) !== undefined;
+
   // A merge_forward whose sub-messages the SDK could not fetch (transient
   // upstream failure, already retried inside @larksuite/channel) arrives as the
   // fetch_failed sentinel. Feeding it to the agent would read as an empty
@@ -750,13 +785,15 @@ async function intakeMessage(deps: IntakeDeps): Promise<void> {
       msgId: emsg.messageId,
       chatType: emsg.chatType,
     });
-    await sendForwardFetchFailedHint(channel, emsg.chatId, emsg.messageId).catch((err) =>
-      log.warn('intake', 'forward-fetch-failed-hint-failed', { err: String(err) }),
-    );
+    if (!redirected) {
+      await sendForwardFetchFailedHint(channel, emsg.chatId, emsg.messageId).catch((err) =>
+        log.warn('intake', 'forward-fetch-failed-hint-failed', { err: String(err) }),
+      );
+    }
     return;
   }
 
-  const handled = await tryHandleCommand({
+  const handled = !redirected && (await tryHandleCommand({
     channel,
     msg: emsg,
     scope,
@@ -777,7 +814,7 @@ async function intakeMessage(deps: IntakeDeps): Promise<void> {
     runExecutor: executor,
     processPool: pool,
     controls,
-  });
+  }));
   if (handled) {
     const dropped = pending.cancel(scope);
     log.info('intake', 'command', { scope, droppedPending: dropped.length });
@@ -933,14 +970,24 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
   // For topic groups: thread the reply so it lands in the same topic as the
   // user's message. Otherwise the SDK posts at top level and the user's
   // topic discussion breaks visually.
+  //
+  // A redirected group (access.chatReplyTarget) has its batch forwarded to the
+  // target chat instead, and the progress bubble, reply and notices all hang
+  // off that forwarded copy — nothing goes back to the source group.
+  const replyTarget =
+    firstMsg.chatType === 'p2p' ? undefined : replyTargetForChat(controls.profileConfig, chatId);
+  const replyChatId = replyTarget ?? chatId;
+  const replyToMessageId = replyTarget
+    ? await forwardBatch(channel, replyTarget, batch)
+    : lastMsg.messageId;
   const sendOpts = {
-    replyTo: lastMsg.messageId,
-    ...(mode === 'topic' && threadId ? { replyInThread: true } : {}),
+    replyTo: replyToMessageId,
+    ...(!replyTarget && mode === 'topic' && threadId ? { replyInThread: true } : {}),
   };
   log.info('flush', 'reply-target', {
     scope,
     mode,
-    chatId,
+    chatId: replyChatId,
     threadId,
     replyTo: sendOpts.replyTo,
     replyInThread: sendOpts.replyInThread === true,
@@ -988,7 +1035,7 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
       source: 'im',
       code: flow.rejectReason.code,
     });
-    await channel.send(chatId, { markdown: flow.rejectReason.userVisible }, sendOpts);
+    await channel.send(replyChatId, { markdown: flow.rejectReason.userVisible }, sendOpts);
     return;
   }
 
@@ -1058,7 +1105,7 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
           callbackAuth.sign({
             runId: execution.runId,
             scope,
-            chatId,
+            chatId: replyChatId,
             operatorOpenId: firstMsg.senderId,
             action,
             policyFingerprint: flow.policy.policyFingerprint,
@@ -1072,18 +1119,18 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
   // Add a "Typing" reaction to the triggering message as an instant ack, but
   // never let that outbound API call block agent event draining.
   const reactionPromise =
-    cotEnabled || replyMode === 'card' ? undefined : addWorkingReaction(channel, lastMsg.messageId);
+    cotEnabled || replyMode === 'card' ? undefined : addWorkingReaction(channel, replyToMessageId);
 
   try {
     if (cotEnabled) {
       const cotPublisher = new CotPublisher({
         client: cotClient,
-        chatId,
+        chatId: replyChatId,
         // The CoT bubble follows this origin message's thread. In a topic the
         // triggering message is itself in-topic, so the bubble lands in the
         // topic; message_cot has no thread_id receive type, so origin is the
         // only lever we have (see CotClient.create).
-        originMessageId: lastMsg.messageId,
+        originMessageId: replyToMessageId,
         runId: execution.runId,
         scope,
         inputPreview: lastMsg.content,
@@ -1105,7 +1152,7 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
         if (cotPublisher.degradedReason) {
           await sendCotDegradedNotice({
             channel,
-            chatId,
+            chatId: replyChatId,
             scope,
             sendOpts,
             reason: cotPublisher.degradedReason,
@@ -1113,7 +1160,7 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
         }
         await sendFinalReply({
           channel,
-          chatId,
+          chatId: replyChatId,
           scope,
           state: finalAnswerOnlyState(finalState),
           replyMode,
@@ -1133,7 +1180,7 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
         | undefined;
       const progress = createLazyProgressStream(scope, replyMode, () =>
         channel.stream(
-          chatId,
+          replyChatId,
           {
             card: {
               initial: renderCard(initialState, cardRenderOptions),
@@ -1173,7 +1220,7 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
             if (controls.profileConfig.agentKind === 'codex') return;
             if (renderText(filterForPrefs(state)).trim() === '') return;
             await channel.send(
-              chatId,
+              replyChatId,
               { card: renderCard(filterForPrefs(state), cardRenderOptions) },
               sendOpts,
             );
@@ -1187,7 +1234,7 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
       if (controls.profileConfig.agentKind === 'codex') {
         await sendFinalReply({
           channel,
-          chatId,
+          chatId: replyChatId,
           scope,
           state: finalReplyState(progress, filterForPrefs(latestState)),
           replyMode,
@@ -1201,7 +1248,7 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
       let markdownCtrl: { setContent(markdown: string): Promise<void> } | undefined;
       const progress = createLazyProgressStream(scope, replyMode, () =>
         channel.stream(
-          chatId,
+          replyChatId,
           {
             markdown: async (ctrl) => {
               producerStarted = true;
@@ -1238,7 +1285,7 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
             if (controls.profileConfig.agentKind === 'codex') return;
             const body = renderText(filterForPrefs(state));
             if (body.trim()) {
-              await channel.send(chatId, { markdown: body }, sendOpts);
+              await channel.send(replyChatId, { markdown: body }, sendOpts);
             }
           },
         });
@@ -1250,7 +1297,7 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
       if (controls.profileConfig.agentKind === 'codex') {
         await sendFinalReply({
           channel,
-          chatId,
+          chatId: replyChatId,
           scope,
           state: finalReplyState(progress, filterForPrefs(latestState)),
           replyMode,
@@ -1272,7 +1319,7 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
       );
       await sendFinalReply({
         channel,
-        chatId,
+        chatId: replyChatId,
         scope,
         state:
           controls.profileConfig.agentKind === 'codex'
@@ -1287,7 +1334,7 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
     log.fail('stream', err);
   } finally {
     activePolicyFingerprints.delete(scope);
-    scheduleWorkingReactionCleanup(channel, lastMsg.messageId, reactionPromise);
+    scheduleWorkingReactionCleanup(channel, replyToMessageId, reactionPromise);
   }
 }
 

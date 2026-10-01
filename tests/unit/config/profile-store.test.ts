@@ -215,6 +215,26 @@ describe('profile store canonical serialization', () => {
     });
   });
 
+  it('persists per-chat reply targets across save→load round-trip', async () => {
+    const root = await tmpRoot();
+    const configPath = join(root, 'config.json');
+    const profile = createDefaultProfileConfig({ agentKind: 'claude', accounts: { app } });
+    profile.access.chatReplyTarget = { oc_source: 'oc_target' };
+
+    await saveRootConfig({
+      schemaVersion: 2,
+      activeProfile: 'claude',
+      preferences: {},
+      profiles: { claude: profile },
+    }, configPath);
+
+    const saved = JSON.parse(await readFile(configPath, 'utf8'));
+    expect(saved.profiles.claude.access.chatReplyTarget).toEqual({ oc_source: 'oc_target' });
+
+    const loaded = await loadRootConfig(configPath);
+    expect(loaded?.profiles.claude?.access.chatReplyTarget).toEqual({ oc_source: 'oc_target' });
+  });
+
   it('persists the in-meeting agent settings across save→load round-trip', async () => {
     const root = await tmpRoot();
     const configPath = join(root, 'config.json');

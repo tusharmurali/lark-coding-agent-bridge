@@ -88,6 +88,9 @@ export interface AppAccess {
   /** Per-chat @-mention override (chat_id → bool); overrides the global
    * requireMentionInGroup for the listed chats. */
   chatRequireMention?: Record<string, boolean>;
+  /** Per-chat reply redirect (source chat_id → target chat_id); messages from
+   * the listed groups are answered in the target chat instead. */
+  chatReplyTarget?: Record<string, string>;
 }
 
 export interface AppPreferences {

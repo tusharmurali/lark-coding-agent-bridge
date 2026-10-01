@@ -5,6 +5,7 @@ import {
   canUseDm,
   canUseGroup,
   isCreator,
+  replyTargetForChat,
   requireMentionForChat,
   type RuntimeControls,
 } from '../../../src/policy/access';
@@ -158,6 +159,13 @@ describe('requireMentionForChat', () => {
     expect(requireMentionForChat(profile, globalOff, 'oc_strict')).toBe(true);
     // An unlisted chat still follows the global setting.
     expect(requireMentionForChat(profile, globalOn, 'oc_other')).toBe(true);
+  });
+
+  it('resolves a reply target only for the chats that redirect', () => {
+    const profile = profileWithAccess({ chatReplyTarget: { oc_source: 'oc_target' } });
+    expect(replyTargetForChat(profile, 'oc_source')).toBe('oc_target');
+    expect(replyTargetForChat(profile, 'oc_other')).toBeUndefined();
+    expect(replyTargetForChat(profileWithAccess(), 'oc_source')).toBeUndefined();
   });
 });
 

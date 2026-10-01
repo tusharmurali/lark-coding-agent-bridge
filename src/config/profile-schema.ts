@@ -29,6 +29,14 @@ export interface ProfileAccess {
    * priority over `requireMentionInGroup` for the chats it lists.
    */
   chatRequireMention?: Record<string, boolean>;
+  /**
+   * Per-chat reply redirect, keyed by the source chat_id; the value is the
+   * chat_id that receives the reply. Messages from a listed group are
+   * forwarded to the target chat and answered under that copy, and nothing is
+   * posted back into the source group. A chat absent from the map is answered
+   * in place.
+   */
+  chatReplyTarget?: Record<string, string>;
 }
 
 export interface SandboxConfig {
@@ -343,6 +351,7 @@ function normalizeAccess(
   legacyRequireMentionInGroup: boolean | undefined,
 ): ProfileAccess {
   const chatRequireMention = normalizeChatMentionMap(access?.chatRequireMention);
+  const chatReplyTarget = normalizeChatReplyTargetMap(access?.chatReplyTarget);
   return {
     allowedUsers: stringArray(access?.allowedUsers),
     allowedChats: stringArray(access?.allowedChats),
@@ -350,6 +359,7 @@ function normalizeAccess(
     requireMentionInGroup: access?.requireMentionInGroup ?? legacyRequireMentionInGroup ?? true,
     // Omit when empty so configs without per-chat overrides stay clean.
     ...(Object.keys(chatRequireMention).length > 0 ? { chatRequireMention } : {}),
+    ...(Object.keys(chatReplyTarget).length > 0 ? { chatReplyTarget } : {}),
   };
 }
 
@@ -359,6 +369,16 @@ function normalizeChatMentionMap(input: unknown): Record<string, boolean> {
   const out: Record<string, boolean> = {};
   for (const [chatId, value] of Object.entries(input as Record<string, unknown>)) {
     if (chatId && typeof value === 'boolean') out[chatId] = value;
+  }
+  return out;
+}
+
+/** Keep only string→non-empty-string entries; drop anything malformed. */
+function normalizeChatReplyTargetMap(input: unknown): Record<string, string> {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
+  const out: Record<string, string> = {};
+  for (const [chatId, value] of Object.entries(input as Record<string, unknown>)) {
+    if (chatId && typeof value === 'string' && value) out[chatId] = value;
   }
   return out;
 }

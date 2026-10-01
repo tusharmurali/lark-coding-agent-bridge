@@ -71,6 +71,15 @@ export function requireMentionForChat(
   return typeof override === 'boolean' ? override : getRequireMentionInGroup(cfg);
 }
 
+/**
+ * The chat that receives the replies to messages from `chatId`, when the
+ * profile redirects that chat (profile.access.chatReplyTarget[chatId]).
+ * `undefined` means the chat is answered in place.
+ */
+export function replyTargetForChat(profile: ProfileConfig, chatId: string): string | undefined {
+  return profile.access.chatReplyTarget?.[chatId];
+}
+
 export function canRunAdminCommand(
   profile: ProfileConfig,
   controls: RuntimeControls,
