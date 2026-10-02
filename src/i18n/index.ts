@@ -527,7 +527,6 @@ const zh = {
   'profile.exported': '已导出 profile: {name} -> {to}',
 
   'model.default': '跟随默认（不指定）',
-  'model.latest': '{name}（最新）',
   'model.opusplan': 'Opus Plan（规划用 Opus，执行用 Sonnet）',
 
   'session.empty': '(空会话)',
@@ -1189,7 +1188,6 @@ const en: Record<Key, string> = {
   'profile.exported': 'Profile exported: {name} -> {to}',
 
   'model.default': 'Follow default (unspecified)',
-  'model.latest': '{name} (latest)',
   'model.opusplan': 'Opus Plan (Opus for planning, Sonnet for execution)',
 
   'session.empty': '(empty session)',
