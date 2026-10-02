@@ -30,13 +30,16 @@ export interface ModelOption {
 // the runtime via setLocale() after the profile loads.
 const claudeModels = (): ModelOption[] => [
   { value: DEFAULT_MODEL, label: t('model.default') },
-  { value: 'claude-fable-5-1', label: t('model.latest', { name: 'Fable 5.1' }) },
-  { value: 'claude-opus-5-5[1m]', label: t('model.latest', { name: 'Opus 5.5' }) },
+  { value: 'claude-opus-5-5[1m]', label: 'Opus 5.5' },
+  { value: 'claude-fable-5-1', label: 'Fable 5.1' },
+  { value: 'claude-sonnet-5-5', label: 'Sonnet 5.5' },
+  { value: 'claude-haiku-4-5', label: 'Haiku 4.5' },
+  { value: 'claude-sonnet-5', label: 'Sonnet 5' },
+  { value: 'claude-opus-5[1m]', label: 'Opus 5' },
+  { value: 'claude-fable-5', label: 'Fable 5' },
   { value: 'claude-opus-4-8', label: 'Opus 4.8' },
   { value: 'claude-opus-4-7', label: 'Opus 4.7' },
-  { value: 'claude-sonnet-5', label: t('model.latest', { name: 'Sonnet 5' }) },
   { value: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
-  { value: 'claude-haiku-4-5', label: t('model.latest', { name: 'Haiku 4.5' }) },
   { value: 'opusplan', label: t('model.opusplan') },
 ];
 
