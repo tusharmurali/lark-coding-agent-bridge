@@ -90,6 +90,22 @@ describe('per-chat reply target', () => {
     expect(outboundTo(h.channel, SOURCE)).toEqual([]);
   });
 
+  it('threads the reply under the forwarded copy when the target is a topic group', async () => {
+    const h = await startTestBridge();
+    h.channel.rawClient.im.v1.message.mergeForward.mockResolvedValueOnce({
+      code: 0,
+      data: { message: { message_id: 'om_forwarded', thread_id: 'omt_feed_topic' } },
+    });
+
+    await h.channel.handlers.message?.(message({ messageId: 'om_question', content: 'why?' }));
+    await waitFor(() => h.channel.streams.length === 1);
+
+    expect(h.channel.streams[0]).toEqual({
+      chatId: TARGET,
+      options: { replyTo: 'om_forwarded', replyInThread: true },
+    });
+  });
+
   it('ignores a reply in a redirected group unless it mentions the bot', async () => {
     const h = await startTestBridge();
 

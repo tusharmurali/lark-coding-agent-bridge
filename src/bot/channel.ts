@@ -628,7 +628,7 @@ async function forwardBatch(
   channel: LarkChannel,
   targetChatId: string,
   batch: NormalizedMessage[],
-): Promise<string> {
+): Promise<{ messageId: string; threadId?: string }> {
   const res = await channel.rawClient.im.v1.message.mergeForward({
     params: { receive_id_type: 'chat_id' },
     data: { receive_id: targetChatId, message_id_list: batch.map((m) => m.messageId) },
@@ -637,7 +637,8 @@ async function forwardBatch(
   if (!messageId) {
     throw new Error(`merge_forward to ${targetChatId} failed: ${res.code} ${res.msg}`);
   }
-  return messageId;
+  const threadId = res.data?.message?.thread_id;
+  return { messageId, ...(threadId ? { threadId } : {}) };
 }
 
 interface IntakeDeps {
@@ -982,13 +983,15 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
   // off that forwarded copy — nothing goes back to the source group.
   const replyTarget =
     firstMsg.chatType === 'p2p' ? undefined : replyTargetForChat(controls.profileConfig, chatId);
+  // When the target is itself a topic group, the forwarded copy opens a topic
+  // and carries its thread id, so the reply threads under it the same way.
   const replyChatId = replyTarget ?? chatId;
-  const replyToMessageId = replyTarget
-    ? await forwardBatch(channel, replyTarget, batch)
-    : lastMsg.messageId;
+  const forwarded = replyTarget ? await forwardBatch(channel, replyTarget, batch) : undefined;
+  const replyToMessageId = forwarded?.messageId ?? lastMsg.messageId;
+  const replyInThread = forwarded ? Boolean(forwarded.threadId) : mode === 'topic' && Boolean(threadId);
   const sendOpts = {
     replyTo: replyToMessageId,
-    ...(!replyTarget && mode === 'topic' && threadId ? { replyInThread: true } : {}),
+    ...(replyInThread ? { replyInThread: true } : {}),
   };
   log.info('flush', 'reply-target', {
     scope,
