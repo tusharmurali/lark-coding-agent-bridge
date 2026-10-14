@@ -4,6 +4,7 @@ import {
   canRunAdminCommand,
   canUseDm,
   canUseGroup,
+  instructionsForChat,
   isCreator,
   replyTargetForChat,
   requireMentionForChat,
@@ -159,6 +160,13 @@ describe('requireMentionForChat', () => {
     expect(requireMentionForChat(profile, globalOff, 'oc_strict')).toBe(true);
     // An unlisted chat still follows the global setting.
     expect(requireMentionForChat(profile, globalOn, 'oc_other')).toBe(true);
+  });
+
+  it('resolves extra instructions only for the chats that carry them', () => {
+    const profile = profileWithAccess({ chatInstructions: { oc_feed: 'Answer in three lines.' } });
+    expect(instructionsForChat(profile, 'oc_feed')).toBe('Answer in three lines.');
+    expect(instructionsForChat(profile, 'oc_other')).toBeUndefined();
+    expect(instructionsForChat(profileWithAccess(), 'oc_feed')).toBeUndefined();
   });
 
   it('resolves a reply target only for the chats that redirect', () => {

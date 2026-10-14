@@ -80,6 +80,14 @@ export function replyTargetForChat(profile: ProfileConfig, chatId: string): stri
   return profile.access.chatReplyTarget?.[chatId];
 }
 
+/**
+ * Extra prompt instructions for runs triggered from `chatId`
+ * (profile.access.chatInstructions[chatId]); `undefined` for every other chat.
+ */
+export function instructionsForChat(profile: ProfileConfig, chatId: string): string | undefined {
+  return profile.access.chatInstructions?.[chatId];
+}
+
 export function canRunAdminCommand(
   profile: ProfileConfig,
   controls: RuntimeControls,

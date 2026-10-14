@@ -93,6 +93,9 @@ export async function saveAccessConfig(
             ...(access.chatReplyTarget && Object.keys(access.chatReplyTarget).length > 0
               ? { chatReplyTarget: access.chatReplyTarget }
               : {}),
+            ...(access.chatInstructions && Object.keys(access.chatInstructions).length > 0
+              ? { chatInstructions: access.chatInstructions }
+              : {}),
           },
           requireMentionInGroup: access.requireMentionInGroup,
         };

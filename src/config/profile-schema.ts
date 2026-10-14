@@ -37,6 +37,12 @@ export interface ProfileAccess {
    * unless they @ the bot. A chat absent from the map is answered in place.
    */
   chatReplyTarget?: Record<string, string>;
+  /**
+   * Per-chat extra instructions, keyed by the source chat_id. The text is
+   * appended to the agent prompt for runs triggered from that chat only;
+   * every other chat is unaffected.
+   */
+  chatInstructions?: Record<string, string>;
 }
 
 export interface SandboxConfig {
@@ -351,7 +357,8 @@ function normalizeAccess(
   legacyRequireMentionInGroup: boolean | undefined,
 ): ProfileAccess {
   const chatRequireMention = normalizeChatMentionMap(access?.chatRequireMention);
-  const chatReplyTarget = normalizeChatReplyTargetMap(access?.chatReplyTarget);
+  const chatReplyTarget = normalizeChatStringMap(access?.chatReplyTarget);
+  const chatInstructions = normalizeChatStringMap(access?.chatInstructions);
   return {
     allowedUsers: stringArray(access?.allowedUsers),
     allowedChats: stringArray(access?.allowedChats),
@@ -360,6 +367,7 @@ function normalizeAccess(
     // Omit when empty so configs without per-chat overrides stay clean.
     ...(Object.keys(chatRequireMention).length > 0 ? { chatRequireMention } : {}),
     ...(Object.keys(chatReplyTarget).length > 0 ? { chatReplyTarget } : {}),
+    ...(Object.keys(chatInstructions).length > 0 ? { chatInstructions } : {}),
   };
 }
 
@@ -374,7 +382,7 @@ function normalizeChatMentionMap(input: unknown): Record<string, boolean> {
 }
 
 /** Keep only string→non-empty-string entries; drop anything malformed. */
-function normalizeChatReplyTargetMap(input: unknown): Record<string, string> {
+function normalizeChatStringMap(input: unknown): Record<string, string> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
   const out: Record<string, string> = {};
   for (const [chatId, value] of Object.entries(input as Record<string, unknown>)) {

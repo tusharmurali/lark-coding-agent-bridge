@@ -50,6 +50,7 @@ import {
 import {
   canUseDm,
   canUseGroup,
+  instructionsForChat,
   replyTargetForChat,
   requireMentionForChat,
 } from '../policy/access';
@@ -952,12 +953,18 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
   const prevModel = lastRunModelByScope.get(scope);
   const modelSwitched = prevModel !== undefined && prevModel !== modelSelection;
   lastRunModelByScope.set(scope, modelSelection);
-  const extraInstructions = modelSwitched
-    ? [
-        `用户刚把本会话使用的模型切换为「${modelLabel(agentKind, modelPref)}」。` +
-          '之前的对话里可能提到别的模型,请以当前模型为准;若被问到你用的是什么模型,据此回答。',
-      ]
-    : undefined;
+  // Per-chat instructions (access.chatInstructions) ride along the same way,
+  // keyed by the source chat so a redirected run still gets its own text.
+  const chatInstructions = instructionsForChat(controls.profileConfig, chatId);
+  const extraInstructions = [
+    ...(modelSwitched
+      ? [
+          `用户刚把本会话使用的模型切换为「${modelLabel(agentKind, modelPref)}」。` +
+            '之前的对话里可能提到别的模型,请以当前模型为准;若被问到你用的是什么模型,据此回答。',
+        ]
+      : []),
+    ...(chatInstructions ? [chatInstructions] : []),
+  ];
 
   const prompt = buildPrompt(
     batch,
@@ -965,7 +972,7 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
     quotes,
     topicContext,
     channel.botIdentity,
-    extraInstructions,
+    extraInstructions.length > 0 ? extraInstructions : undefined,
   );
   log.info('prompt', 'built', {
     promptChars: prompt.length,

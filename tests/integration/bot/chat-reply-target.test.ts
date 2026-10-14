@@ -62,6 +62,7 @@ interface FakeLarkChannel {
 
 const SOURCE = 'oc_source';
 const TARGET = 'oc_target';
+const SOURCE_INSTRUCTIONS = 'Shape every answer as Verdict, Why, Next.';
 const ANSWER: AgentEvent[] = [
   { type: 'text', delta: 'the answer' },
   { type: 'done', terminationReason: 'normal' },
@@ -88,6 +89,20 @@ describe('per-chat reply target', () => {
     });
     expect(h.channel.streams[0]).toEqual({ chatId: TARGET, options: { replyTo: 'om_forwarded' } });
     expect(outboundTo(h.channel, SOURCE)).toEqual([]);
+  });
+
+  it('adds the chat instructions to the prompt for that chat only', async () => {
+    const h = await startTestBridge();
+
+    await h.channel.handlers.message?.(message({ messageId: 'om_question', content: 'why?' }));
+    await waitFor(() => h.agent.runOptions.length === 1);
+    expect(h.agent.runOptions[0]?.prompt).toContain(SOURCE_INSTRUCTIONS);
+
+    await h.channel.handlers.message?.(
+      message({ messageId: 'om_plain', chatId: 'oc_plain', content: 'hi', mentionedBot: true }),
+    );
+    await waitFor(() => h.agent.runOptions.length === 2);
+    expect(h.agent.runOptions[1]?.prompt).not.toContain(SOURCE_INSTRUCTIONS);
   });
 
   it('threads the reply under the forwarded copy when the target is a topic group', async () => {
@@ -194,6 +209,7 @@ async function startTestBridge(): Promise<{ channel: FakeLarkChannel; agent: Fak
       allowedChats: [SOURCE, 'oc_plain'],
       chatRequireMention: { [SOURCE]: false },
       chatReplyTarget: { [SOURCE]: TARGET },
+      chatInstructions: { [SOURCE]: SOURCE_INSTRUCTIONS },
     },
   });
   const profileConfig = {

@@ -91,6 +91,9 @@ export interface AppAccess {
   /** Per-chat reply redirect (source chat_id → target chat_id); messages from
    * the listed groups are answered in the target chat instead. */
   chatReplyTarget?: Record<string, string>;
+  /** Per-chat extra instructions (source chat_id → text) appended to the
+   * agent prompt for runs triggered from that chat only. */
+  chatInstructions?: Record<string, string>;
 }
 
 export interface AppPreferences {
