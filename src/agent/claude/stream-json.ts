@@ -25,6 +25,8 @@ interface ClaudeRawEvent {
     cache_read_input_tokens?: number;
   };
   total_cost_usd?: number;
+  /** On `result` with subtype `success`: the text of the final assistant message. */
+  result?: string;
 }
 
 export function* translateEvent(raw: unknown): Generator<AgentEvent> {
@@ -79,6 +81,11 @@ export function* translateEvent(raw: unknown): Generator<AgentEvent> {
         cachedInputTokens: evt.usage.cache_read_input_tokens,
         costUsd: evt.total_cost_usd,
       };
+    }
+    // The final answer alone, so the reply leaves out the progress text the
+    // agent wrote between tool calls (same contract as the Codex adapter).
+    if (evt.subtype === 'success' && typeof evt.result === 'string' && evt.result.trim()) {
+      yield { type: 'final_text', content: evt.result };
     }
     yield { type: 'done', sessionId: evt.session_id, terminationReason: 'normal' };
   }

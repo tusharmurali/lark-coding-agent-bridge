@@ -83,6 +83,21 @@ describe('Claude stream-json translator', () => {
     expect([...translateEvent({ type: 'result', session_id: 'sess-2' })][0]).not.toHaveProperty('threadId');
   });
 
+  it('emits the final answer from a successful result, and nothing for errors or blanks', () => {
+    expect([
+      ...translateEvent({ type: 'result', subtype: 'success', session_id: 's', result: 'the answer' }),
+    ]).toEqual([
+      { type: 'final_text', content: 'the answer' },
+      { type: 'done', sessionId: 's', terminationReason: 'normal' },
+    ]);
+    for (const raw of [
+      { type: 'result', subtype: 'error_during_execution', session_id: 's', result: 'boom' },
+      { type: 'result', subtype: 'success', session_id: 's', result: '  ' },
+    ]) {
+      expect([...translateEvent(raw)].map((e) => e.type)).toEqual(['done']);
+    }
+  });
+
   it('ignores unknown, empty, and incomplete raw events', () => {
     expect([...translateEvent(null)]).toEqual([]);
     expect([...translateEvent({ type: 'assistant', message: { content: [{ type: 'text', text: '' }] } })]).toEqual([]);
