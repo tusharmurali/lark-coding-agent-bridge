@@ -20,26 +20,20 @@ export interface ModelOption {
 }
 
 /**
- * Claude Code models. Pinned to concrete version ids (Claude Code's `--model`
- * accepts the full model-id string, not just the `opus`/`sonnet` aliases) so
- * the picker names an exact model. Add new ids here when a generation ships;
- * `opusplan` is kept as the one alias with no versioned equivalent (it runs
- * Opus for planning and Sonnet for execution).
+ * Claude Code models: one current id per family (Claude Code's `--model`
+ * accepts the full model-id string, not just the `opus`/`sonnet` aliases).
+ * Bump the ids here when a generation ships; `opusplan` is kept as the one
+ * alias with no versioned equivalent (it runs Opus for planning and Sonnet for
+ * execution).
  */
 // Built lazily (not module-level consts) so labels pick up the locale set by
 // the runtime via setLocale() after the profile loads.
 const claudeModels = (): ModelOption[] => [
   { value: DEFAULT_MODEL, label: t('model.default') },
   { value: 'claude-fable-5-2', label: 'Fable 5.2' },
-  { value: 'claude-opus-5-5[1m]', label: 'Opus 5.5' },
+  { value: 'claude-opus-5-5', label: 'Opus 5.5' },
   { value: 'claude-sonnet-5-5', label: 'Sonnet 5.5' },
-  { value: 'claude-haiku-4-5', label: 'Haiku 4.5' },
-  { value: 'claude-sonnet-5', label: 'Sonnet 5' },
-  { value: 'claude-opus-5[1m]', label: 'Opus 5' },
-  { value: 'claude-fable-5', label: 'Fable 5' },
-  { value: 'claude-opus-4-8', label: 'Opus 4.8' },
-  { value: 'claude-opus-4-7', label: 'Opus 4.7' },
-  { value: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
+  { value: 'claude-haiku-5-5', label: 'Haiku 5.5' },
   { value: 'opusplan', label: t('model.opusplan') },
 ];
 
