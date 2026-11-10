@@ -30,6 +30,7 @@ export interface ModelOption {
 // the runtime via setLocale() after the profile loads.
 const claudeModels = (): ModelOption[] => [
   { value: DEFAULT_MODEL, label: t('model.default') },
+  { value: 'claude-fable-5-2', label: 'Fable 5.2' },
   { value: 'claude-opus-5-5[1m]', label: 'Opus 5.5' },
   { value: 'claude-fable-5-1', label: 'Fable 5.1' },
   { value: 'claude-sonnet-5-5', label: 'Sonnet 5.5' },
