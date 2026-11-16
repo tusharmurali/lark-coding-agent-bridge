@@ -254,6 +254,67 @@ describe('topic message quote handling', () => {
     expect(topicBlock).not.toContain('om_at_in_topic');
   });
 
+  it('expands a forwarded bundle that sits in the topic history', async () => {
+    // message.list returns only the wrapper of a merge_forward; its children
+    // come back from a direct fetch of that message. Without that fetch the
+    // agent sees an empty <forwarded_messages/> and reports the forward as empty.
+    const h = await createHarness({
+      chatMode: 'topic',
+      threadMessages: [
+        {
+          message_id: 'om_forward_root',
+          msg_type: 'merge_forward',
+          body: { content: 'Merged and Forwarded Message' },
+          sender: { id: 'ou_asker', sender_type: 'user' },
+          create_time: '1760000000000',
+          thread_id: 'omt_topic',
+        },
+        {
+          message_id: 'om_at_in_topic',
+          msg_type: 'text',
+          body: { content: JSON.stringify({ text: '@Bridge' }) },
+          sender: { id: 'ou_user', sender_type: 'user' },
+          create_time: '1760000001000',
+          thread_id: 'omt_topic',
+        },
+      ],
+    });
+    h.channel.fetchRawMessage.mockImplementation(async (messageId: string) => [
+      {
+        message_id: messageId,
+        msg_type: 'merge_forward',
+        body: { content: 'Merged and Forwarded Message' },
+        create_time: '1760000000000',
+        sender: { id: 'ou_asker', sender_type: 'user' },
+      },
+      {
+        message_id: 'om_forward_child',
+        upper_message_id: messageId,
+        msg_type: 'text',
+        body: { content: JSON.stringify({ text: 'the forwarded report text' }) },
+        create_time: '1759999999000',
+        sender: { id: 'ou_reporter', sender_type: 'user' },
+      },
+    ]);
+
+    await startTestBridge(h);
+
+    await h.channel.handlers.message?.(
+      message({
+        messageId: 'om_at_in_topic',
+        rootId: 'om_forward_root',
+        parentId: 'om_forward_root',
+        threadId: 'omt_topic',
+        content: '@Bridge',
+      }),
+    );
+    await waitFor(() => h.agent.runOptions.length === 1);
+
+    const prompt = h.agent.runOptions[0]?.prompt ?? '';
+    const topicBlock = prompt.slice(prompt.indexOf('<topic_context>'), prompt.indexOf('</topic_context>'));
+    expect(topicBlock).toContain('the forwarded report text');
+  });
+
   it('does not fetch topic context when the topic session already exists', async () => {
     // A prior session for this topic scope means the history is already in the
     // resumed conversation — no need to re-fetch and re-inject it every turn.

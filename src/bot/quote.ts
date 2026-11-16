@@ -218,8 +218,12 @@ export async function fetchTopicContext(
 
   const out: QuotedContext[] = [];
   for (const item of relevant) {
+    // message.list returns a merge_forward as its wrapper only; the forwarded
+    // children come back from a direct fetch of that message, as on the quote path.
+    const listed = item.msg_type === 'merge_forward' ? undefined : [item];
     const fetchSubMessages = async (mid: string): Promise<ApiMessageItem[]> => {
-      const source = mid === item.message_id ? [item] : await fetchSubTreeItems(channel, mid);
+      const source =
+        mid === item.message_id && listed ? listed : await fetchSubTreeItems(channel, mid);
       return source.map(preExpandInteractive);
     };
     const quoted = await normalizeItemToQuoted(channel, item, fetchSubMessages);
