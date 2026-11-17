@@ -42,6 +42,32 @@ describe('COT event mapping', () => {
     expect(client.completed).toEqual(['done']);
   });
 
+  it('finishes the understanding step once the agent starts acting', async () => {
+    const client = new FakeCotClient();
+    const publisher = new CotPublisher({
+      client,
+      chatId: 'oc_chat',
+      originMessageId: 'om_origin',
+      runId: 'run-1',
+      scope: 'oc_chat:omt_topic',
+      inputPreview: 'draw a bear',
+    });
+    await publisher.start();
+
+    await consumeCotEvents(iterate([
+      { type: 'tool_use', id: 'tool-1', name: 'command_execution', input: { command: 'echo bear' } },
+      { type: 'tool_result', id: 'tool-1', output: 'ok', isError: false },
+      { type: 'text', delta: 'done' },
+      { type: 'done', terminationReason: 'normal' },
+    ]), publisher, { detail: 'brief' });
+
+    const finished = client.events
+      .map((event, index) => ({ event, index }))
+      .filter(({ event }) => event.event_type === 'STEP_FINISHED' && JSON.parse(event.content).stepId === 'step-understand-run-1');
+    expect(finished).toHaveLength(1);
+    expect(finished[0]?.index).toBeLessThan(client.events.findIndex((event) => event.event_type === 'TOOL_CALL_START'));
+  });
+
   it('includes tool args and output only in detailed mode', async () => {
     const client = new FakeCotClient();
     const publisher = new CotPublisher({

@@ -127,6 +127,8 @@ interface CotEvent {
   timestamp: number;
 }
 
+const understandStepId = (runId: string): string => `step-understand-${runId}`;
+
 export class CotPublisher {
   private readonly client: Pick<CotClient, 'create' | 'update' | 'complete'>;
   readonly chatId: string;
@@ -193,7 +195,7 @@ export class CotPublisher {
       input: { query: this.inputPreview },
     });
     this.enqueue('STEP_STARTED', {
-      stepId: `step-understand-${this.runId}`,
+      stepId: understandStepId(this.runId),
       stepName: t('cot.step.understand'),
     });
   }
@@ -270,6 +272,7 @@ export async function consumeCotEvents(
   publisher: CotPublisher,
   opts: { detail: CotMessagesMode },
 ): Promise<void> {
+  let understandOpen = true;
   let reasoningOpen = false;
   let textStepOpen = false;
   let textMessageOpen = false;
@@ -299,6 +302,7 @@ export async function consumeCotEvents(
         continue;
       }
       if (evt.type === 'tool_use') {
+        closeUnderstandIfNeeded();
         closeReasoningIfNeeded();
         closeTextIfNeeded();
         const toolCallId = evt.id;
@@ -338,6 +342,7 @@ export async function consumeCotEvents(
         continue;
       }
       if (evt.type === 'text') {
+        closeUnderstandIfNeeded();
         closeReasoningIfNeeded();
         if (!textStepOpen) {
           textStepOpen = true;
@@ -359,6 +364,7 @@ export async function consumeCotEvents(
       }
       if (evt.type === 'final_text') continue;
       if (evt.type === 'done' || evt.type === 'error') {
+        closeUnderstandIfNeeded();
         closeReasoningIfNeeded();
         closeTextIfNeeded();
         if (textStepOpen) {
@@ -382,12 +388,22 @@ export async function consumeCotEvents(
         return;
       }
     }
+    closeUnderstandIfNeeded();
     closeReasoningIfNeeded();
     closeTextIfNeeded();
     await publisher.finish('done');
   } catch (err) {
     log.warn('cot', 'consume-failed', { err: err instanceof Error ? err.message : String(err) });
     await publisher.finish('error');
+  }
+
+  function closeUnderstandIfNeeded(): void {
+    if (!understandOpen) return;
+    understandOpen = false;
+    publisher.enqueue('STEP_FINISHED', {
+      stepId: understandStepId(publisher.runId),
+      stepName: t('cot.step.understand'),
+    });
   }
 
   function closeReasoningIfNeeded(): void {
