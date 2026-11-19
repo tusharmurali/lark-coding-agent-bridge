@@ -1102,25 +1102,30 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
           recordSession,
           async () => {},
         );
-        await cotDone;
-        if (cotPublisher.degradedReason) {
-          await sendCotDegradedNotice({
+        // The answer is what the user is waiting for: send it while the
+        // bubble finishes closing instead of after it.
+        await Promise.all([
+          sendFinalReply({
             channel,
             chatId,
             scope,
+            state: finalAnswerOnlyState(finalState),
+            replyMode,
             sendOpts,
-            reason: cotPublisher.degradedReason,
-          });
-        }
-        await sendFinalReply({
-          channel,
-          chatId,
-          scope,
-          state: finalAnswerOnlyState(finalState),
-          replyMode,
-          sendOpts,
-          cardRenderOptions,
-        });
+            cardRenderOptions,
+          }),
+          cotDone.then(async () => {
+            if (cotPublisher.degradedReason) {
+              await sendCotDegradedNotice({
+                channel,
+                chatId,
+                scope,
+                sendOpts,
+                reason: cotPublisher.degradedReason,
+              });
+            }
+          }),
+        ]);
         return;
       }
       log.warn('cot', 'fallback-existing-reply', { reason: 'create-disabled' });

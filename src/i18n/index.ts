@@ -344,7 +344,7 @@ const zh = {
   'channel.forwardFetchFailed':
     '这条合并转发的内容没能从飞书拉取到（上游超时/网络抖动，已自动重试仍失败），所以我没收到里面的消息。麻烦稍后重新转发一次。',
 
-  'cot.degraded': 'COT 过程消息更新失败，已停止展示过程；最终答案仍会继续发送。',
+  'cot.degraded': 'COT 过程消息更新失败，已停止展示过程；最终答案不受影响。',
   'channel.replyBlockedByAudit':
     '我的回复被飞书内容审核拦截，没有发出（{reason}）。可以让我换一种形式重发，例如写成文档。',
   'cot.step.understand': '理解用户问题',
@@ -1002,7 +1002,7 @@ const en: Record<Key, string> = {
   'channel.forwardFetchFailed':
     "The content of this merged forward couldn't be fetched from Feishu (upstream timeout/network blip; automatic retries failed), so I didn't receive the messages inside. Please forward it again later.",
 
-  'cot.degraded': 'COT progress updates failed — progress display stopped; the final answer will still be sent.',
+  'cot.degraded': 'COT progress updates failed — progress display stopped; the final answer is not affected.',
   'channel.replyBlockedByAudit':
     "Lark's content audit blocked my reply, so it was not posted ({reason}). Ask me to send it again in another form, for example as a doc.",
   'cot.step.understand': 'Understanding the question',
