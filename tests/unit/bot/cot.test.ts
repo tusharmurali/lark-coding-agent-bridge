@@ -5,6 +5,7 @@ import {
   CotPublisher,
   cotBriefToolDetail,
   cotBriefToolTitle,
+  cotToolTitle,
   finalAnswerOnlyState,
 } from '../../../src/bot/cot.js';
 import type { AgentEvent } from '../../../src/agent/types.js';
@@ -254,12 +255,13 @@ describe('tool rows', () => {
     description: 'List the members of the team group',
   };
 
-  it('titles a Bash call with the description the agent gave it', () => {
-    expect(cotBriefToolTitle('Bash', input, 'running')).toBe('⏳ Bash — List the members of the team group');
+  it('titles a call with the description the agent gave it, and nothing else', () => {
+    expect(cotToolTitle('Bash', input)).toBe('List the members of the team group');
   });
 
-  it('falls back to the command when there is no description', () => {
-    expect(cotBriefToolTitle('Bash', { command: 'echo hello' }, 'running')).toBe('⏳ Bash — echo hello');
+  it('falls back to the tool and its command, without a status icon', () => {
+    expect(cotToolTitle('Bash', { command: 'echo hello' })).toBe('Bash — echo hello');
+    expect(cotToolTitle('Read', { file_path: '/a/b.ts' })).not.toMatch(/[⏳✅❌]/u);
   });
 
   it('expands to the full command', () => {

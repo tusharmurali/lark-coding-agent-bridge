@@ -15,8 +15,13 @@ const BODY_TOTAL_MAX = 2500;
 
 export function toolHeaderText(tool: ToolEntry): string {
   const icon = tool.status === 'done' ? '✅' : tool.status === 'error' ? '❌' : '⏳';
+  return `${icon} ${toolLabel(tool)}`;
+}
+
+/** The header without its status icon, for surfaces that cannot redraw it. */
+export function toolLabel(tool: Pick<ToolEntry, 'name' | 'input'>): string {
   const summary = summarizeInput(tool.name, tool.input);
-  return summary ? `${icon} **${tool.name}** — ${summary}` : `${icon} **${tool.name}**`;
+  return summary ? `**${tool.name}** — ${summary}` : `**${tool.name}**`;
 }
 
 export function toolBodyMd(tool: ToolEntry): string {

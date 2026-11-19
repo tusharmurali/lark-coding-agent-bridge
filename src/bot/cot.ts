@@ -2,7 +2,7 @@ import type { AgentEvent } from '../agent/types';
 import type { CotMessagesMode, TenantBrand } from '../config/schema';
 import { log } from '../core/logger';
 import { t } from '../i18n';
-import { toolHeaderText } from '../card/tool-render';
+import { toolHeaderText, toolLabel } from '../card/tool-render';
 import type { RunState } from '../card/run-state';
 
 const ENDPOINTS: Record<TenantBrand, string> = {
@@ -308,7 +308,7 @@ export async function consumeCotEvents(
         const toolCallId = evt.id;
         const detailed = opts.detail === 'detailed';
         const showSummary = opts.detail === 'brief' || detailed;
-        const title = showSummary ? cotBriefToolTitle(evt.name, evt.input, 'running') : t('cot.toolRunning');
+        const title = showSummary ? cotToolTitle(evt.name, evt.input) : t('cot.toolRunning');
         toolBrief.set(toolCallId, { name: evt.name, input: evt.input });
         publisher.enqueue('TOOL_CALL_START', {
           toolCallId,
@@ -427,6 +427,17 @@ export function cotBriefToolTitle(
   status: 'running' | 'done' | 'error' = 'running',
 ): string {
   return toolHeaderText({ id: 'cot-tool', name, input, status }).replace(/\*\*/g, '');
+}
+
+/**
+ * The collapsed row of a tool call. Lark draws it once and never again, so it
+ * carries no status icon. A call that describes itself is titled by that
+ * description alone; the tool name and the command are in the expanded row.
+ */
+export function cotToolTitle(name: string, input: unknown): string {
+  const description = stringValue((input as { description?: unknown } | null | undefined)?.description);
+  if (description?.trim()) return description.replace(/\s+/g, ' ').trim();
+  return toolLabel({ name, input }).replace(/\*\*/g, '');
 }
 
 /**
