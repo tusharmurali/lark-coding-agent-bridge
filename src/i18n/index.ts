@@ -349,7 +349,6 @@ const zh = {
     '我的回复被飞书内容审核拦截，没有发出（{reason}）。可以让我换一种形式重发，例如写成文档。',
   'cot.step.understand': '理解用户问题',
   'cot.step.output': '输出过程',
-  'cot.step.elapsed': '用时 {duration}',
   'cot.toolRunning': '正在调用工具',
   'cot.toolDone': '工具调用已完成',
 
@@ -1008,7 +1007,6 @@ const en: Record<Key, string> = {
     "Lark's content audit blocked my reply, so it was not posted ({reason}). Ask me to send it again in another form, for example as a doc.",
   'cot.step.understand': 'Understanding the question',
   'cot.step.output': 'Writing output',
-  'cot.step.elapsed': 'Worked for {duration}',
   'cot.toolRunning': 'Calling a tool',
   'cot.toolDone': 'Tool call finished',
 
