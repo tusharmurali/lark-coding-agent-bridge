@@ -75,6 +75,8 @@ function summarizeInput(name: string, input: unknown): string {
       return pick('url');
     case 'WebSearch':
       return pick('query', 60);
+    case 'Skill':
+      return pick('skill');
     case 'Agent':
     case 'Task':
       return pick('description') || pick('subagent_type');

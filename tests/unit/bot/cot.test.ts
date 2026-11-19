@@ -264,6 +264,10 @@ describe('tool rows', () => {
     expect(cotToolTitle('Read', { file_path: '/a/b.ts' })).not.toMatch(/[⏳✅❌]/u);
   });
 
+  it('names the skill a Skill call loads', () => {
+    expect(cotToolTitle('Skill', { skill: 'codebase' })).toBe('Skill — codebase');
+  });
+
   it('expands to the full command', () => {
     expect(cotBriefToolDetail('Bash', input, 'done')).toBe(`✅ Bash — ${input.command}`);
     expect(cotBriefToolDetail('Bash', input, 'error')).toBe(`❌ Bash — ${input.command}`);
