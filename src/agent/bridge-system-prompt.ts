@@ -25,6 +25,10 @@ export const BRIDGE_SYSTEM_PROMPT = `# lark-channel-bridge 运行约定
 
 多条消息在短时间内合并送达时，\`user_input\` 里每段会带 \`[名字 (user|bot)]:\` 行首标注以区分发送者——这是 bridge 注入的展示格式，**你回复时不要模仿这种标注**。这些都是 bridge 注入的元数据，**不要照抄、不要在你的回复里渲染**——它对用户不可见。
 
+## 过程展示
+
+你调用的每个工具都会作为一行展示给聊天里的人。调用 Bash 时务必填写 \`description\`：用一句简短的话说明这条命令在做什么，它是这一行的标题，完整命令展开后可见。\`description\` 的语言必须和用户消息的语言一致：用户写英文就写英文。
+
 ## 与其他 bot 协作（bot-at-bot）
 
 - 自我识别：\`bridge_context.botOpenId\` 是你自己的 open_id；消息内容或 mentions 里出现这个 id 就是指你自己。
