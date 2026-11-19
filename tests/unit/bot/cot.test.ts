@@ -1,5 +1,13 @@
-import { describe, expect, it } from 'vitest';
-import { consumeCotEvents, CotClient, CotPublisher, cotBriefToolTitle, finalAnswerOnlyState } from '../../../src/bot/cot.js';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+  consumeCotEvents,
+  CotClient,
+  CotPublisher,
+  cotBriefToolTitle,
+  finalAnswerOnlyState,
+  stepLabel,
+} from '../../../src/bot/cot.js';
+import { setLocale } from '../../../src/i18n/index.js';
 import type { AgentEvent } from '../../../src/agent/types.js';
 import type { RunState } from '../../../src/card/run-state.js';
 
@@ -240,3 +248,23 @@ class FakeCotClient {
 async function* iterate(events: readonly AgentEvent[]): AsyncIterable<AgentEvent> {
   for (const event of events) yield event;
 }
+
+describe('stepLabel', () => {
+  // Only the English table lists more than one wording.
+  beforeAll(() => setLocale('en'));
+  afterAll(() => setLocale('zh'));
+
+  it('gives a run the same wording every time it is asked', () => {
+    expect(stepLabel('cot.step.understand', 'run-a')).toBe(stepLabel('cot.step.understand', 'run-a'));
+    expect(stepLabel('cot.step.output', 'run-a')).toBe(stepLabel('cot.step.output', 'run-a'));
+  });
+
+  it('varies the wording across runs', () => {
+    const seen = new Set(
+      Array.from({ length: 200 }, (_, i) => stepLabel('cot.step.understand', `run-${i}`)),
+    );
+    expect(seen.size).toBeGreaterThan(1);
+    for (const label of seen) expect(label).not.toContain('\n');
+  });
+});
+

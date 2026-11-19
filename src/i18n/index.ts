@@ -1005,8 +1005,25 @@ const en: Record<Key, string> = {
   'cot.degraded': 'COT progress updates failed — progress display stopped; the final answer is not affected.',
   'channel.replyBlockedByAudit':
     "Lark's content audit blocked my reply, so it was not posted ({reason}). Ask me to send it again in another form, for example as a doc.",
-  'cot.step.understand': 'Understanding the question',
-  'cot.step.output': 'Writing output',
+  // One wording per line; a run shows one of them (see stepLabel in bot/cot.ts).
+  'cot.step.understand': [
+    'Charging up',
+    'Off the starting line',
+    'Picking up speed',
+    'Getting up to speed',
+    'Finding the fast lane',
+    'Reading at full tilt',
+    'On it in a flash',
+    'Lacing up',
+  ].join('\n'),
+  'cot.step.output': [
+    'Sprinting to the finish',
+    'On the final lap',
+    'Down the home stretch',
+    'Crossing the line',
+    'Bringing it home',
+    'Full speed to the answer',
+  ].join('\n'),
   'cot.toolRunning': 'Calling a tool',
   'cot.toolDone': 'Tool call finished',
 

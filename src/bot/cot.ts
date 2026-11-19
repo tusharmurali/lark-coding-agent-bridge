@@ -129,6 +129,18 @@ interface CotEvent {
 
 const understandStepId = (runId: string): string => `step-understand-${runId}`;
 
+/**
+ * A step label may list several wordings, one per line, so the bubble does not
+ * read the same on every run. The run id picks one, which keeps a step's
+ * started and finished events on the same wording without storing it.
+ */
+export function stepLabel(key: 'cot.step.understand' | 'cot.step.output', runId: string): string {
+  const options = t(key).split('\n');
+  let hash = 0;
+  for (const char of runId) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return options[hash % options.length] ?? options[0]!;
+}
+
 export class CotPublisher {
   private readonly client: Pick<CotClient, 'create' | 'update' | 'complete'>;
   readonly chatId: string;
@@ -196,7 +208,7 @@ export class CotPublisher {
     });
     this.enqueue('STEP_STARTED', {
       stepId: understandStepId(this.runId),
-      stepName: t('cot.step.understand'),
+      stepName: stepLabel('cot.step.understand', this.runId),
     });
   }
 
@@ -348,7 +360,7 @@ export async function consumeCotEvents(
           textStepOpen = true;
           publisher.enqueue('STEP_STARTED', {
             stepId: finalStepId,
-            stepName: t('cot.step.output'),
+            stepName: stepLabel('cot.step.output', publisher.runId),
           });
         }
         if (!textMessageOpen) {
@@ -370,7 +382,7 @@ export async function consumeCotEvents(
         if (textStepOpen) {
           publisher.enqueue('STEP_FINISHED', {
             stepId: finalStepId,
-            stepName: t('cot.step.output'),
+            stepName: stepLabel('cot.step.output', publisher.runId),
           });
         }
         if (evt.type === 'error') {
@@ -402,7 +414,7 @@ export async function consumeCotEvents(
     understandOpen = false;
     publisher.enqueue('STEP_FINISHED', {
       stepId: understandStepId(publisher.runId),
-      stepName: t('cot.step.understand'),
+      stepName: stepLabel('cot.step.understand', publisher.runId),
     });
   }
 
