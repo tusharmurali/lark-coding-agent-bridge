@@ -57,6 +57,7 @@ import { RunExecutor } from '../runtime/run-executor';
 import type { SessionCatalog } from '../session/catalog';
 import type { SessionStore } from '../session/store';
 import type { WorkspaceStore } from '../workspace/store';
+import { auditRejectionReason } from './audit-rejection';
 import { ActiveRuns, type RunHandle } from './active-runs';
 import { ChatModeCache, type ChatMode } from './chat-mode-cache';
 import { handleCommentMention } from './comments';
@@ -1285,6 +1286,14 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
     }
   } catch (err) {
     log.fail('stream', err);
+    const reason = auditRejectionReason(err);
+    if (reason) {
+      await channel
+        .send(chatId, { text: t('channel.replyBlockedByAudit', { reason }) }, sendOpts)
+        .catch((noticeErr) =>
+          log.warn('stream', 'audit-notice-failed', { scope, err: String(noticeErr) }),
+        );
+    }
   } finally {
     activePolicyFingerprints.delete(scope);
     scheduleWorkingReactionCleanup(channel, lastMsg.messageId, reactionPromise);
