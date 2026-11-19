@@ -3,6 +3,7 @@ import {
   consumeCotEvents,
   CotClient,
   CotPublisher,
+  cotBriefToolDetail,
   cotBriefToolTitle,
   finalAnswerOnlyState,
   stepLabel,
@@ -265,6 +266,32 @@ describe('stepLabel', () => {
     );
     expect(seen.size).toBeGreaterThan(1);
     for (const label of seen) expect(label).not.toContain('\n');
+  });
+});
+
+describe('tool rows', () => {
+  const input = {
+    command: 'cd /tmp && LARK_CLI_NO_PROXY=1 lark-cli im +chat-members-list --chat-id oc_1 --as bot --format json',
+    description: 'List the members of the team group',
+  };
+
+  it('titles a Bash call with the description the agent gave it', () => {
+    expect(cotBriefToolTitle('Bash', input, 'running')).toBe('⏳ Bash — List the members of the team group');
+  });
+
+  it('falls back to the command when there is no description', () => {
+    expect(cotBriefToolTitle('Bash', { command: 'echo hello' }, 'running')).toBe('⏳ Bash — echo hello');
+  });
+
+  it('expands to the full command', () => {
+    expect(cotBriefToolDetail('Bash', input, 'done')).toBe(`✅ Bash — ${input.command}`);
+    expect(cotBriefToolDetail('Bash', input, 'error')).toBe(`❌ Bash — ${input.command}`);
+  });
+
+  it('repeats the title for tools without a command', () => {
+    expect(cotBriefToolDetail('Read', { file_path: '/a/b.ts' }, 'done')).toBe(
+      cotBriefToolTitle('Read', { file_path: '/a/b.ts' }, 'done'),
+    );
   });
 });
 

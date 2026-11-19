@@ -347,7 +347,7 @@ export async function consumeCotEvents(
           content: detailed
             ? truncateCot(evt.output ?? '', COT_TOOL_OUTPUT_MAX)
             : brief
-              ? cotBriefToolTitle(brief.name, brief.input, evt.isError ? 'error' : 'done')
+              ? cotBriefToolDetail(brief.name, brief.input, evt.isError ? 'error' : 'done')
               : t('cot.toolDone'),
         });
         toolBrief.delete(evt.id);
@@ -439,6 +439,16 @@ export function cotBriefToolTitle(
   status: 'running' | 'done' | 'error' = 'running',
 ): string {
   return toolHeaderText({ id: 'cot-tool', name, input, status }).replace(/\*\*/g, '');
+}
+
+/**
+ * The row a tool call expands to. A command is shown in full, so the short
+ * title never hides what actually ran; other tools repeat their title.
+ */
+export function cotBriefToolDetail(name: string, input: unknown, status: 'done' | 'error'): string {
+  const command = stringValue((input as { command?: unknown } | null | undefined)?.command);
+  if (!command) return cotBriefToolTitle(name, input, status);
+  return `${status === 'error' ? '❌' : '✅'} ${name} — ${truncateCot(command, COT_TEXT_MAX)}`;
 }
 
 function cotToolIcon(name: string): string {

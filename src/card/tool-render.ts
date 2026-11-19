@@ -53,7 +53,7 @@ function summarizeInput(name: string, input: unknown): string {
   };
   switch (name) {
     case 'Bash':
-      return pick('command');
+      return pick('description') || pick('command');
     case 'Read':
     case 'Edit':
     case 'Write':
