@@ -1005,8 +1005,8 @@ const en: Record<Key, string> = {
   'cot.degraded': 'COT progress updates failed — progress display stopped; the final answer is not affected.',
   'channel.replyBlockedByAudit':
     "Lark's content audit blocked my reply, so it was not posted ({reason}). Ask me to send it again in another form, for example as a doc.",
-  'cot.step.understand': 'Understanding the question',
-  'cot.step.output': 'Writing output',
+  'cot.step.understand': 'Reading the request',
+  'cot.step.output': 'Writing the reply',
   'cot.toolRunning': 'Calling a tool',
   'cot.toolDone': 'Tool call finished',
 
