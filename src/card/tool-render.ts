@@ -63,10 +63,10 @@ function summarizeInput(name: string, input: unknown): string {
     case 'Edit':
     case 'Write':
     case 'NotebookEdit':
-      return shortenPath(pick('file_path'));
+      return shortenPath(pick('file_path', Number.MAX_SAFE_INTEGER));
     case 'Grep': {
       const pat = pick('pattern', 40);
-      const path = pick('path', 30);
+      const path = pick('path', Number.MAX_SAFE_INTEGER);
       return path ? `${pat} in ${shortenPath(path)}` : pat;
     }
     case 'Glob':
@@ -123,8 +123,11 @@ function renderBashOutput(out: string): string {
   return `**Output**\n\`\`\`\n${out}\n\`\`\``;
 }
 
+/** `…/dir/file.ts` for a deep path: the file and its folder are what identify it. */
 function shortenPath(p: string): string {
-  return p;
+  const parts = p.split('/').filter(Boolean);
+  if (parts.length <= 3) return p;
+  return `…/${parts.slice(-2).join('/')}`;
 }
 
 function truncate(s: string, max: number): string {

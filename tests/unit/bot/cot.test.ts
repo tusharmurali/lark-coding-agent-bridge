@@ -273,9 +273,16 @@ describe('tool rows', () => {
     expect(cotBriefToolDetail('Bash', input, 'error')).toBe(`❌ Bash — ${input.command}`);
   });
 
-  it('repeats the title for tools without a command', () => {
-    expect(cotBriefToolDetail('Read', { file_path: '/a/b.ts' }, 'done')).toBe(
-      cotBriefToolTitle('Read', { file_path: '/a/b.ts' }, 'done'),
+  it('shortens a deep file path in the title and keeps it whole when expanded', () => {
+    const file = { file_path: '/data00/bot/repo/packages/libs/reporter/src/classes/ContactRDInterface.ts' };
+    expect(cotToolTitle('Read', file)).toBe('Read — …/classes/ContactRDInterface.ts');
+    expect(cotBriefToolDetail('Read', file, 'done')).toBe(`✅ Read — ${file.file_path}`);
+    expect(cotToolTitle('Read', { file_path: 'src/bot/cot.ts' })).toBe('Read — src/bot/cot.ts');
+  });
+
+  it('repeats the title for tools with neither a command nor a file', () => {
+    expect(cotBriefToolDetail('Glob', { pattern: '**/*.ts' }, 'done')).toBe(
+      cotBriefToolTitle('Glob', { pattern: '**/*.ts' }, 'done'),
     );
   });
 });

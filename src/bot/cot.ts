@@ -441,13 +441,15 @@ export function cotToolTitle(name: string, input: unknown): string {
 }
 
 /**
- * The row a tool call expands to. A command is shown in full, so the short
- * title never hides what actually ran; other tools repeat their title.
+ * The row a tool call expands to. A command or a file path is shown in full,
+ * so the short title never hides what was actually used; other tools repeat
+ * their title.
  */
 export function cotBriefToolDetail(name: string, input: unknown, status: 'done' | 'error'): string {
-  const command = stringValue((input as { command?: unknown } | null | undefined)?.command);
-  if (!command) return cotBriefToolTitle(name, input, status);
-  return `${status === 'error' ? '❌' : '✅'} ${name} — ${truncateCot(command, COT_TEXT_MAX)}`;
+  const rec = input as { command?: unknown; file_path?: unknown } | null | undefined;
+  const full = stringValue(rec?.command) ?? stringValue(rec?.file_path);
+  if (!full) return cotBriefToolTitle(name, input, status);
+  return `${status === 'error' ? '❌' : '✅'} ${name} — ${truncateCot(full, COT_TEXT_MAX)}`;
 }
 
 function cotToolIcon(name: string): string {
