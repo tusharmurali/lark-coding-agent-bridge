@@ -130,9 +130,9 @@ interface CotEvent {
 const understandStepId = (runId: string): string => `step-understand-${runId}`;
 
 /**
- * A step label may list several wordings, one per line, so the bubble does not
- * read the same on every run. The run id picks one, which keeps a step's
- * started and finished events on the same wording without storing it.
+ * The label of a step while it runs. It may list several wordings, one per
+ * line, so the bubble does not read the same on every run; the run id picks
+ * one. A finished step is relabelled with what was done (`cot.step.*Done`).
  */
 export function stepLabel(key: 'cot.step.understand' | 'cot.step.output', runId: string): string {
   const options = t(key).split('\n');
@@ -383,7 +383,7 @@ export async function consumeCotEvents(
         if (textStepOpen) {
           publisher.enqueue('STEP_FINISHED', {
             stepId: finalStepId,
-            stepName: stepLabel('cot.step.output', publisher.runId),
+            stepName: t('cot.step.outputDone'),
           });
         }
         if (evt.type === 'error') {
@@ -422,7 +422,7 @@ export async function consumeCotEvents(
     understandOpen = false;
     publisher.enqueue('STEP_FINISHED', {
       stepId: understandStepId(publisher.runId),
-      stepName: stepLabel('cot.step.understand', publisher.runId),
+      stepName: t('cot.step.understandDone'),
     });
   }
 
