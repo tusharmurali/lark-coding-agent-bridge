@@ -6,6 +6,7 @@ import {
   cotBriefToolDetail,
   cotBriefToolTitle,
   finalAnswerOnlyState,
+  formatElapsed,
   stepLabel,
 } from '../../../src/bot/cot.js';
 import { setLocale } from '../../../src/i18n/index.js';
@@ -292,6 +293,15 @@ describe('tool rows', () => {
     expect(cotBriefToolDetail('Read', { file_path: '/a/b.ts' }, 'done')).toBe(
       cotBriefToolTitle('Read', { file_path: '/a/b.ts' }, 'done'),
     );
+  });
+});
+
+describe('formatElapsed', () => {
+  it('shows the coarsest two units and never zero', () => {
+    expect(formatElapsed(200)).toBe('1s');
+    expect(formatElapsed(34_400)).toBe('34s');
+    expect(formatElapsed(134_000)).toBe('2m 14s');
+    expect(formatElapsed(3_780_000)).toBe('1h 3m');
   });
 });
 

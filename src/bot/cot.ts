@@ -285,6 +285,7 @@ export async function consumeCotEvents(
   opts: { detail: CotMessagesMode },
 ): Promise<void> {
   let understandOpen = true;
+  const startedAt = Date.now();
   let reasoningOpen = false;
   let textStepOpen = false;
   let textMessageOpen = false;
@@ -390,6 +391,13 @@ export async function consumeCotEvents(
           await publisher.finish('error');
         } else {
           const status = evt.terminationReason === 'normal' ? 'done' : evt.terminationReason ?? 'done';
+          if (status === 'done') {
+            // Close the list with how long the run took.
+            const stepId = `step-elapsed-${publisher.runId}`;
+            const stepName = t('cot.step.elapsed', { duration: formatElapsed(Date.now() - startedAt) });
+            publisher.enqueue('STEP_STARTED', { stepId, stepName });
+            publisher.enqueue('STEP_FINISHED', { stepId, stepName });
+          }
           publisher.enqueue('RUN_FINISHED', {
             threadId: publisher.scope,
             runId: publisher.runId,
@@ -449,6 +457,15 @@ export function cotBriefToolDetail(name: string, input: unknown, status: 'done' 
   const command = stringValue((input as { command?: unknown } | null | undefined)?.command);
   if (!command) return cotBriefToolTitle(name, input, status);
   return `${status === 'error' ? '❌' : '✅'} ${name} — ${truncateCot(command, COT_TEXT_MAX)}`;
+}
+
+/** `34s`, `2m 14s`, `1h 3m`: the coarsest two units, never zero. */
+export function formatElapsed(ms: number): string {
+  const seconds = Math.max(1, Math.round(ms / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
 function cotToolIcon(name: string): string {
