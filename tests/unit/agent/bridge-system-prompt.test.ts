@@ -7,21 +7,21 @@ import {
 
 describe('bridge system prompt bot collaboration rules', () => {
   it('states that bots only receive messages via a real structured mention', () => {
-    expect(BRIDGE_SYSTEM_PROMPT).toContain('只有被真实 @');
-    expect(BRIDGE_SYSTEM_PROMPT).toContain('收不到');
+    expect(BRIDGE_SYSTEM_PROMPT).toContain('only receives a group message when it is really @-mentioned');
+    expect(BRIDGE_SYSTEM_PROMPT).toContain('never receive');
   });
 
   it('scopes the mention requirement to bots, not human users', () => {
-    expect(BRIDGE_SYSTEM_PROMPT).toContain('人类用户');
+    expect(BRIDGE_SYSTEM_PROMPT).toContain('human users');
   });
 
   it('tells the agent not to mention other bots by default to avoid loops', () => {
-    expect(BRIDGE_SYSTEM_PROMPT).toContain('默认不要 @ 其他 bot');
-    expect(BRIDGE_SYSTEM_PROMPT).toContain('死循环');
+    expect(BRIDGE_SYSTEM_PROMPT).toContain('do not @ other bots by default');
+    expect(BRIDGE_SYSTEM_PROMPT).toContain('endless loop');
   });
 
   it('allows mentioning a bot when the user explicitly asks for a handoff', () => {
-    expect(BRIDGE_SYSTEM_PROMPT).toContain('用户明确要求');
+    expect(BRIDGE_SYSTEM_PROMPT).toContain('explicitly asks');
   });
 
   it('points self-identification at the bridge_context botOpenId field', () => {
@@ -34,8 +34,14 @@ describe('bridge system prompt bot collaboration rules', () => {
   });
 
   it('tells the agent not to mimic the batch sender annotation format', () => {
-    expect(BRIDGE_SYSTEM_PROMPT).toContain('[名字 (user|bot)]');
-    expect(BRIDGE_SYSTEM_PROMPT).toContain('不要模仿');
+    expect(BRIDGE_SYSTEM_PROMPT).toContain('[name (user|bot)]');
+    expect(BRIDGE_SYSTEM_PROMPT).toContain('do not imitate');
+  });
+
+  it('tells the agent to request every app scope when logging in', () => {
+    expect(BRIDGE_SYSTEM_PROMPT).toContain('A login replaces the user\'s granted scopes');
+    expect(BRIDGE_SYSTEM_PROMPT).toContain('lark-cli auth scopes');
+    expect(BRIDGE_SYSTEM_PROMPT).toContain('Never use `--recommend`');
   });
 });
 

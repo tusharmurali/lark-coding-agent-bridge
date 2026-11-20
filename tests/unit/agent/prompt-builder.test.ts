@@ -124,10 +124,10 @@ describe('agent prompt builder', () => {
   it('keeps lark-cli user identity policy details out of user-facing OAuth replies', () => {
     const source = readFileSync(join(process.cwd(), 'src/agent/bridge-system-prompt.ts'), 'utf8');
 
-    expect(source).toContain('不要把 strict-mode/default-as 这类内部配置命令展示给用户');
-    expect(source).toContain('当前 profile 还没有可用的用户身份授权');
-    expect(source).toContain('如果当前 profile 已经有用户授权');
-    expect(source).toContain('内部顺序执行身份策略收敛');
+    expect(source).toContain('Do not show internal config commands such as strict-mode/default-as to the user');
+    expect(source).toContain('This profile has no usable user authorization yet');
+    expect(source).toContain('If the current profile already has user authorization');
+    expect(source).toContain('internal identity-policy step');
   });
 });
 
