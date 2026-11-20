@@ -9,6 +9,7 @@ import {
   finalAnswerOnlyState,
 } from '../../../src/bot/cot.js';
 import type { AgentEvent } from '../../../src/agent/types.js';
+import { paths } from '../../../src/config/paths.js';
 import type { RunState } from '../../../src/card/run-state.js';
 
 describe('COT event mapping', () => {
@@ -267,6 +268,14 @@ describe('tool rows', () => {
   it('names an MCP tool by its server and tool', () => {
     expect(cotToolTitle('mcp__campaign-kb__lookup_term', { query: 'Campaign Agent' })).toBe(
       'campaign-kb - lookup_term (MCP) — Campaign Agent',
+    );
+  });
+
+  it('names a file the bridge downloaded from the chat instead of its hash path', () => {
+    expect(cotToolTitle('Read', { file_path: `${paths.mediaDir}/914a42e4.jpg` })).toBe('Read — attached image');
+    expect(cotToolTitle('Read', { file_path: `${paths.mediaDir}/914a42e4.pdf` })).toBe('Read — attached file');
+    expect(cotToolTitle('Read', { file_path: '/repo/src/pages/unionEditor/index.tsx' })).toBe(
+      'Read — …/unionEditor/index.tsx',
     );
   });
 

@@ -1,3 +1,4 @@
+import { paths } from '../config/paths';
 import { t } from '../i18n';
 import type { ToolEntry } from './run-state';
 
@@ -66,7 +67,10 @@ function summarizeInput(name: string, input: unknown): string {
   switch (name) {
     case 'Bash':
       return pick('description') || pick('command');
-    case 'Read':
+    case 'Read': {
+      const fp = pick('file_path', Number.MAX_SAFE_INTEGER);
+      return attachmentLabel(fp) ?? shortenPath(fp);
+    }
     case 'Edit':
     case 'Write':
     case 'NotebookEdit':
@@ -128,6 +132,12 @@ function renderInput(tool: ToolEntry): string {
 function renderBashOutput(out: string): string {
   // Some agents wrap stdout/stderr in xml-like tags; keep simple and just dump.
   return `**Output**\n\`\`\`\n${out}\n\`\`\``;
+}
+
+/** Files the bridge downloaded from the chat sit in its media folder under hash names. */
+function attachmentLabel(p: string): string | undefined {
+  if (!p.startsWith(`${paths.mediaDir}/`)) return undefined;
+  return /\.(png|jpe?g|gif|webp)$/i.test(p) ? 'attached image' : 'attached file';
 }
 
 /** `…/dir/file.ts` for a deep path: the file and its folder are what identify it. */
