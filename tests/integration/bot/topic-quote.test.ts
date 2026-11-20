@@ -1,5 +1,5 @@
 import type { NormalizedMessage } from '@larksuite/channel';
-import { realpath } from 'node:fs/promises';
+import { realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultProfileConfig } from '../../../src/config/profile-schema.js';
@@ -52,6 +52,7 @@ interface FakeLarkChannel {
   getAppInfo: ReturnType<typeof vi.fn>;
   listChats: ReturnType<typeof vi.fn>;
   fetchRawMessage: ReturnType<typeof vi.fn>;
+  downloadResourceToFile?: ReturnType<typeof vi.fn>;
   recallMessage: ReturnType<typeof vi.fn>;
   on(handlers: MessageHandlerMap): void;
   connect(): Promise<void>;
@@ -445,6 +446,47 @@ describe('topic message quote handling', () => {
       'om_quote_target',
       expect.objectContaining({ cardContentType: 'user_card_content' }),
     );
+  });
+
+  it('attaches the image on a quoted message like one sent directly', async () => {
+    const h = await createHarness({ chatMode: 'group' });
+    h.channel.fetchRawMessage = vi.fn(async (messageId: string) => [
+      {
+        message_id: messageId,
+        msg_type: 'image',
+        body: { content: JSON.stringify({ image_key: 'img_quoted' }) },
+        create_time: '1760000000000',
+        sender: { id: 'ou_quote_sender' },
+      },
+    ]);
+    h.channel.downloadResourceToFile = vi.fn(
+      async (_messageId: string, _fileKey: string, _type: string, path: string) => {
+        await writeFile(path, 'png');
+        return { contentType: 'image/png' };
+      },
+    );
+
+    await startTestBridge(h);
+
+    await h.channel.handlers.message?.(
+      message({
+        messageId: 'om_group_reply',
+        rootId: 'om_quote_target',
+        parentId: 'om_quote_target',
+        content: '@Bridge what is this',
+      }),
+    );
+    await waitFor(() => h.agent.runOptions.length === 1);
+
+    expect(h.channel.downloadResourceToFile).toHaveBeenCalledWith(
+      'om_quote_target',
+      'img_quoted',
+      'image',
+      expect.any(String),
+    );
+    const prompt = h.agent.runOptions[0]?.prompt ?? '';
+    expect(prompt).toContain('.png');
+    expect(prompt).not.toContain('img_quoted');
   });
 
   it('keeps non-root reply quotes in topic chats', async () => {
