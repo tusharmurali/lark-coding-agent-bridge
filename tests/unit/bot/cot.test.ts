@@ -264,6 +264,12 @@ describe('tool rows', () => {
     expect(cotToolTitle('Read', { file_path: '/a/b.ts' })).not.toMatch(/[⏳✅❌]/u);
   });
 
+  it('names an MCP tool by its server and tool', () => {
+    expect(cotToolTitle('mcp__campaign-kb__lookup_term', { query: 'Campaign Agent' })).toBe(
+      'campaign-kb - lookup_term (MCP) — Campaign Agent',
+    );
+  });
+
   it('names the skill a Skill call loads', () => {
     expect(cotToolTitle('Skill', { skill: 'codebase' })).toBe('Skill — codebase');
   });

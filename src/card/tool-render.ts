@@ -21,7 +21,14 @@ export function toolHeaderText(tool: ToolEntry): string {
 /** The header without its status icon, for surfaces that cannot redraw it. */
 export function toolLabel(tool: Pick<ToolEntry, 'name' | 'input'>): string {
   const summary = summarizeInput(tool.name, tool.input);
-  return summary ? `**${tool.name}** — ${summary}` : `**${tool.name}**`;
+  const name = toolDisplayName(tool.name);
+  return summary ? `**${name}** — ${summary}` : `**${name}**`;
+}
+
+/** MCP tools arrive as `mcp__server__tool`; show them the way Claude Code does. */
+function toolDisplayName(name: string): string {
+  const mcp = /^mcp__(.+?)__(.+)$/.exec(name);
+  return mcp ? `${mcp[1]} - ${mcp[2]} (MCP)` : name;
 }
 
 export function toolBodyMd(tool: ToolEntry): string {
